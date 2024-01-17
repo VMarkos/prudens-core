@@ -58,7 +58,36 @@ We shall describe Prudens syntax in a top-down manner, starting from the highest
 
 ### Policy Syntax
 
+All policies should have the following abstract structure:
+
+```
+@Policy
+<Rules>
+
+@Priorities
+<Priorities>
+```
+
+The two `@` directives, `@Policy` and `@Priorities` indicate where the main policy and prioritization content begins, respectively. This syntax is order-sensitive, meaning that including `@Priorities` prior to introducing rules is not allowed.
+
+Regarding rules in a policy, they are introduced below the `@Policy` directive and are delimited by a semicolon \(`;`\). The only case where the delimiting semicolon can be omiting is in the case of the last rule in a policy. Similarly, priorities are declared under the `@Priorities` directive and are delimited again by a semicolon (`;`). As with rules, the last priority declared need not be followed by a semicolon (nevertheless, this is not considered as a syntax error at the moment).
+
 ### Rule Syntax
+
+Rules have the following abstract syntax:
+
+```
+<Rule name> :: <literal1>, <literal2>, ..., <literalN> implies <head literal>
+```
+
+So, a rule is split into three main parts:
+* its **name**, which corresponds to the part left of the double double dots (`::`);
+* its **body**, which is enclosed between the double double dots (`::`) and the reserved `implies` keywords, and;
+* its **head**, which follows the `implies` keyword.
+
+Regarding a rule's name, it can be any string starting with a lower- or capital-case letter of the lating alphabet, `[a-zA-Z]`, followed by zero or more alphanumeric characters or underscores, `[a-zA-Z0-9_]`. Thus, valid rule names can be `rule1`, `Rule_1`, or `R15_a` but not `_rule` (because it starts with an underscore), `3Rule` (because it starts with a digit) or `rule#1` (because it contains a non-alphanumeric or underscore symbol).
+
+A rule's body is a comma-separated list of literals (see below for literal syntax).
 
 ### Literal Syntax
 
