@@ -1,5 +1,5 @@
 import re
-from typing import Union
+from typing import Union, Dict
 from enum import Enum
 from prudens_core.errors.SyntaxErrors import UnmatchedDoubleQuoteError, InvalidArgumentError
 
@@ -7,7 +7,7 @@ class ConstantType(Enum):
     INT = 1
     FLOAT = 2
     STRING = 3
-    ENTITY = 4
+    ENTITY = 4 
 
 class ParsedConstant:
     __slots__ = ("value", "type")

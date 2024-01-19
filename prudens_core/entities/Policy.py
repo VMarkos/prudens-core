@@ -13,6 +13,7 @@ from prudens_core.entities.PriorityRelation import PriorityRelation
 from prudens_core.parsers.PolicyParser import ParsedPolicy, PolicyParser
 from prudens_core.errors.RuntimeErrors import RuleNotFoundError, LiteralNotInContextError, LiteralAlreadyInContextError, UnresolvedConflictsError
 from prudens_core.errors.SyntaxErrors import PrudensSyntaxError, MissingDelimiterError, MultipleDelimiterError
+import prudens_core.utilities.utils as utils
 
 class Policy:
     __slots__ = ("original_string", "rules", "rule_hasse_diagram", "priorities", "inferences", "dilemmas", "inferred_by")
@@ -30,6 +31,122 @@ class Policy:
         self.inferences: Context = Context()
         self.dilemmas: Dict[Literal, Dilemma] = dict()
         self.inferred_by: Dict[Literal, List[Dict[str, Set[Substitution]]]] = dict()
+
+    @classmethod
+    def from_dict(cls, init_dict: Dict) -> Policy:
+        policy = cls.__new__(cls)
+        policy.original_string = utils.parse_dict_prop(init_dict, "original_string", "Policy", default_value = "", expected_types = [str])
+        try:
+            rules = init_dict["rules"]
+        except KeyError:
+            raise KeyError(f"Missing key 'rules' in Policy initialization from dict.")
+        if type(rules) != dict:
+            raise TypeError(f"Expected input of type 'dict' for Policy.rules but received {type(rules)}.")
+        policy.rules = dict()
+        for rn, rule in rules.items():
+            if type(rn) != str:
+                raise TypeError(f"Expected input of type 'str' for Policy.rules.key but received {type(rn)}.")
+            try:
+                policy.rules[rn] = Rule.from_dict(rule)
+            except KeyError as e:
+                raise KeyError(f"While parsing a policy from a dict, rule {rn} could not be properly parsed.") from e
+            except TypeError as e:
+                raise TypeError(f"While parsing a policy from a dict, rule {rn} could not be properly parsed.") from e
+            except ValueError as e:
+                raise ValueError(f"While parsing a policy from a dict, rule {rn} could not be properly parsed.") from e 
+        policy.rule_hasse_diagram = HasseDiagram(policy.rules)
+        try:
+            priorities = init_dict["priorities"]
+        except KeyError:
+            raise KeyError(f"Missing key 'priorities' in Policy initialization from dict.")
+        if type(priorities) != dict:
+            raise TypeError(f"Expected input of type 'dict' for Policy.priorities but received {type(priorities)}.")
+        try:
+            policy.priorities = PriorityRelation.from_dict(priorities)
+        except KeyError as e:
+            raise KeyError(f"While parsing a policy from a dict, priorities could not be properly parsed.") from e
+        except TypeError as e:
+            raise TypeError(f"While parsing a policy from a dict, priorities could not be properly parsed.") from e
+        except ValueError as e:
+            raise ValueError(f"While parsing a policy from a dict, priorities could not be properly parsed.") from e
+        try:
+            inferences = init_dict["inferences"]
+        except KeyError:
+            inferences = dict()
+        if type(inferences) != dict:
+            raise TypeError(f"Expected input of type 'dict' for Policy.inferences but received {type(inferences)}.")
+        try:
+            policy.inferences = Context.from_dict(inferences)
+        except KeyError as e:
+            raise KeyError(f"While parsing a policy from a dict, inferences could not be properly parsed.") from e
+        except TypeError as e:
+            raise TypeError(f"While parsing a policy from a dict, inferences could not be properly parsed.") from e
+        except ValueError as e:
+            raise ValueError(f"While parsing a policy from a dict, inferences could not be properly parsed.") from e
+        try:
+            dilemmas = init_dict["dilemmas"]
+        except KeyError:
+            dilemmas = dict()
+        if type(inferences) != dict:
+            raise TypeError(f"Expected input of type 'dict' for Policy.inferences but received {type(dilemmas)}.")
+        policy.dilemmas = dict()
+        for l, d in dilemmas.items():
+            try:
+                lit = Literal(l)
+            except PrudensSyntaxError as e:
+                raise SyntaxError("While parsing a policy from a dict, dilemmas could not be properly parsed.") from e
+            try:
+                policy.dilemmas[lit] = Dilemma.from_dict()
+            except KeyError as e:
+                raise KeyError(f"While parsing a policy from a dict, dilemma {d} could not be properly parsed.") from e
+            except TypeError as e:
+                raise TypeError(f"While parsing a policy from a dict, dilemma {d} could not be properly parsed.") from e
+            except ValueError as e:
+                raise ValueError(f"While parsing a policy from a dict, dilemma {d} could not be properly parsed.") from e
+        try:
+            inferred_by = init_dict["inferred_by"]
+        except KeyError:
+            inferred_by = dict()
+        if type(inferences) != dict:
+            raise TypeError(f"Expected input of type 'dict' for Policy.inferred_by but received {type(inferred_by)}.")
+        policy.inferred_by = dict()
+        for l, instances in inferred_by.items():
+            try:
+                lit = Literal(l)
+            except PrudensSyntaxError as e:
+                raise SyntaxError("While parsing a policy from a dict, inferred_by could not be properly parsed.") from e
+            policy.inferred_by[lit] = []
+            for instance_dict in instances:
+                if type(instance_dict) != dict:
+                    raise TypeError(f"Expected input of type 'dict' for Policy.inferred_by.literal.values but received {type(instance_dict)}.")
+                for rn, sub_list in instance_dict.items():
+                    if type(rn) != str:
+                        raise TypeError(f"Expected input of type 'str' for rule name but received {type(rn)}.")
+                    if type(sub_list) != list:
+                        raise TypeError(f"Expected input of type 'list' for list of subs but received {type(sub_list)}.")
+                    for s in sub_list:
+                        try:
+                            sub = Substitution.from_dict(s)
+                        except KeyError as e:
+                            raise KeyError(f"While parsing a policy from a dict, substitution {s} could not be properly parsed.") from e
+                        except TypeError as e:
+                            raise TypeError(f"While parsing a policy from a dict, substitution {s} could not be properly parsed.") from e
+                        except ValueError as e:
+                            raise ValueError(f"While parsing a policy from a dict, substitution {s} could not be properly parsed.") from e
+                        policy.inferred_by[lit].append(sub)
+        return policy
+
+    def to_dict(self) -> Dict:
+        return {
+            "original_string": self.original_string,
+            "rules": { rn: rule.to_dict() for rn, rule in self.rules.items() },
+            "priorities": self.priorities.to_dict(),
+            "inferences": self.inferences.to_dict(),
+            "dilemmas": { str(l): d.to_dict() for l, d in self.dilemmas.items() }, # TODO Implement `to_dict()` for dilemmas!
+            "inferred_by": { str(l): [
+                { rn: sub.to_dict() for rn, sub in instance_dict.items() } for instance_dict in inferring_rules
+            ] for l, inferring_rules in self.inferred_by.items() }, # TODO Implement `to_dict()` for substitutions!
+        }
 
     def infer(self,
               context: Context,
@@ -61,6 +178,7 @@ class Policy:
                 for sub in inferring_rules[rule_name]:
                     # self.rule_hasse_diagram.update_last_call(False)
                     if not rule.is_triggered(marked_literals, sub):
+                        self.rule_hasse_diagram.update_last_call(False)
                         continue
                     instance: Literal = sub.apply(rule.head)
                     try:
@@ -138,9 +256,8 @@ class Dilemma:
         conflict_delim = r'(?<=\})\s*,'
         # FIXME You need to throw proper exceptions at this point!
         conflicts_set = set()
-        conflicts = re.split(conflict_delim, split_dilemma[1].strip()[1:-1])
         # # print("conflicts after split_delim:", conflicts)
-        for conflict in conflicts:
+        for conflict in re.split(conflict_delim, split_dilemma[1].strip()[1:-1]):
             conflict = conflict.strip()
             if not conflict:
                 continue
@@ -152,13 +269,49 @@ class Dilemma:
         dilemma.conflicts = conflicts_set
         return dilemma
 
+    @classmethod
+    def from_dict(cls, init_dict: Dict) -> Dilemma:
+        dilemma = cls.__new__(cls)
+        try:
+            literal = init_dict["literal"]
+        except KeyError:
+            raise KeyError(f"Missing key 'literal' in Dilemma initialization from dict.")
+        try:
+            dilemma.literal = Literal.from_dict(literal)
+        except KeyError as e:
+            raise KeyError(f"While parsing a dilemma from a dict, literal {literal} could not be properly parsed.") from e
+        except TypeError as e:
+            raise TypeError(f"While parsing a dilemma from a dict, literal {literal} could not be properly parsed.") from e
+        except ValueError as e:
+            raise ValueError(f"While parsing a dilemma from a dict, literal {literal} could not be properly parsed.") from e
+        try:
+            conflicts = init_dict["conflicts"]
+        except KeyError:
+            raise KeyError(f"Missing key 'conflicts' in Dilemma initialization from dict.")
+        dilemma.conflicts = set()
+        for cs in conflicts:
+            if type(cs) != list:
+                raise TypeError(f"Expected input of type 'list' for Dilemma.conflicts.value but received {type(cs)}.")
+            for c in cs:
+                if type(c) != str:
+                    raise TypeError(f"Expected input of type 'str' for dilemma conflict (rule name) but received {type(c)}.")
+                dilemma.conflicts.add(frozenset(c))
+        return dilemma
+
+    def to_dict(self) -> Dict:
+        return {
+            "literal": self.literal.to_dict(),
+            "conflicts": [ list(x) for x in self.conflicts ],
+        }
+
     def append_conflict(self, conflict: FrozenSet[str]) -> None:
         self.conflicts.add(conflict)
 
     def union(self, other: Dilemma) -> Dilemma:
         union_dilemma: Dilemma = self.__deepcopy__()
-        for conflict in other.conflicts:
-            union_dilemma.append_conflict(conflict)
+        union_dilemma.conflicts = union_dilemma.conflicts.union(other.conflicts)
+        # for conflict in other.conflicts:
+        #     union_dilemma.append_conflict(conflict)
         return union_dilemma
     
     def __deepcopy__(self, memodict = {}) -> Dilemma:
@@ -312,7 +465,7 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
 
     def __initialize_edges(self) -> None:
         n: int = len(self.nodes)
-        edges: ArrayLike = np.zeros((n, n))
+        edges: ArrayLike = np.zeros((n, n)) # TODO Revisit this! Maybe a set of tuples? Check what operations you make on edges!
         self.edges: dok_matrix = dok_matrix(edges)
         for signature in self.nodes.keys():
             self.__update_edges(signature)
@@ -324,10 +477,7 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
         super_added: List[int] = []
         super_excluded: List[RuleSignature] = []
         for super_layer in self.existing_layers[(layer_index + 1):]:
-            super_signatures: List[RuleSignature] = self.__exclude_supersets(super_excluded, self.layers[super_layer][:])
-            if len(super_signatures) == 0:
-                break
-            for super_signature in super_signatures:
+            for super_signature in self.__exclude_supersets(super_excluded, self.layers[super_layer][:]):
                 if signature.is_subsignature(super_signature):
                     super_index: int = self.node_indices[super_signature]
                     self.edges[node_index, super_index] = 1
@@ -336,10 +486,7 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
         sub_added: List[int] = []
         sub_excluded: List[RuleSignature] = []
         for sub_layer in self.existing_layers[:layer_index]:
-            sub_signatures: List[RuleSignature] = self.__exclude_subsets(sub_excluded, self.layers[sub_layer][:])
-            if len(sub_signatures) == 0:
-                break
-            for sub_signature in sub_signatures:
+            for sub_signature in self.__exclude_subsets(sub_excluded, self.layers[sub_layer][:]):
                 if sub_signature.is_subsignature(signature):
                     sub_index: int = self.node_indices[sub_signature]
                     self.edges[sub_index, node_index] = 1
@@ -351,27 +498,25 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
 
     def __exclude_supersets(self, sub_signatures: List[RuleSignature], signatures: List[RuleSignature]) -> List[RuleSignature]:
         if len(sub_signatures) == 0:
-            return signatures
-        no_supers: List[RuleSignature] = []
+            for x in signatures:
+                yield x
         for signature in signatures:
             i = 0
             while i < len(sub_signatures) and not sub_signatures[i].is_subsignature(signature):
                 i += 1
             if i == len(sub_signatures):
-                no_supers.append(signature)
-        return no_supers
+                yield signature
     
     def __exclude_subsets(self, super_signatures: List[RuleSignature], signatures: List[RuleSignature]) -> List[RuleSignature]:
         if (len(super_signatures)) == 0:
-            return signatures
-        no_subs: List[RuleSignature] = []
+            for x in signatures:
+                yield x
         for signature in signatures:
             i = 0
             while i < len(super_signatures) and not signature.is_subsignature(super_signatures[i]):
                 i += 1
             if i == len(super_signatures):
-                no_subs.append(signature)
-        return no_subs
+                yield signature
     
     def add_node(self, common_signature: str, rules: List[str]) -> None:
         signature: RuleSignature = RuleSignature(common_signature)

@@ -1,10 +1,11 @@
 from __future__ import annotations
-from typing import Union, Dict
+from typing import Union, Dict, List
 from prudens_core.entities.Variable import Variable
 from prudens_core.entities.Constant import Constant
 from prudens_core.entities.Substitution import Substitution
 from prudens_core.parsers.LiteralParser import LiteralParser, ParsedLiteral
 from prudens_core.errors.RuntimeErrors import DuplicateValueError
+import prudens_core.utilities.utils as utils
 
 class Literal:
     __slots__ = ("original_string", "_name", "_sign", "_arity", "arguments", "_is_external", "_is_action",
@@ -21,7 +22,7 @@ class Literal:
             self._name: str = parsed_literal.name
             self._sign: bool = parsed_literal.sign
             self._arity: int = parsed_literal.arity
-            self.arguments: Union[Variable, Constant] = parsed_literal.arguments
+            self.arguments: List[Union[Variable, Constant]] = parsed_literal.arguments
             self._is_external: bool = parsed_literal.is_external # TODO Don't you need at this point a field for the code or the code reference?
             self._is_action: bool = parsed_literal.is_action
             self.signature: str = self.__get_signature()
@@ -76,6 +77,47 @@ class Literal:
             self.is_external = new_is_action
             self.signature = self.__get_signature()
 
+    @classmethod
+    def from_dict(cls, init_dict: Dict) -> Literal:
+        literal = cls.__new__(cls)
+        literal.original_string = utils.parse_dict_prop(init_dict, "original_string", "Literal", default_value = "", expected_types = [str])
+        literal._name = utils.parse_dict_prop(init_dict, "name", "Literal", expected_types = [str])
+        literal._sign = utils.parse_dict_prop(init_dict, "sign", "Literal", expected_types = [bool])
+        literal._arity = utils.parse_dict_prop(init_dict, "arity", "Literal", expected_types = [int])
+        literal._is_external = utils.parse_dict_prop(init_dict, "is_external", "Literal", expected_types = [bool])
+        literal._is_action = utils.parse_dict_prop(init_dict, "is_action", "Literal", expected_types = [bool])
+        literal.signature = utils.parse_dict_prop(init_dict, "signature", "Literal", default_value = literal.__get_signature(), expected_types = [str])
+        try:
+            args_list: List[Union[Variable, Constant]] = init_dict["arguments"]
+        except KeyError:
+            raise KeyError(f"Missing key 'arguments' in {Literal} initialization from dict.")
+        literal.arguments = []
+        for i, argument in enumerate(args_list):
+            var_exception = None
+            try:
+                lit_arg = Variable.from_dict(argument)
+            except Exception as e:
+                var_exception = e
+            if var_exception:
+                try:
+                    lit_arg = Constant.from_dict(argument)
+                except Exception as e:
+                    raise ValueError(f"Invalid literal argument in initialization of literal {literal.name} at index {i}: {argument}.")
+            literal.arguments.append(lit_arg)
+        return literal
+
+    def to_dict(self) -> Dict:
+        return {
+            "original_string": self.original_string,
+            "name": self._name,
+            "sign": self._sign,
+            "arity": self._arity,
+            "arguments": [ x.to_dict() for x in self.arguments ],
+            "is_external": self._is_external,
+            "is_action": self._is_action,
+            "signature": self.signature,
+        }
+
     def is_propositional(self) -> bool:
         return self.arity == 0
     
@@ -92,13 +134,11 @@ class Literal:
         sub = Substitution()        
         if self.arity == 0:
             return sub # Propositional literal, i.e. nothing in sub.
-        for i in range(len(self.arguments)):
-            this_arg: Union[Variable, Constant] = self.arguments[i]
-            other_arg: Union[Variable, Constant] = other.arguments[i]
-                # print("\tthis arg:", this_arg)
-                # print("\tother arg:", other_arg)
+        for this_arg, other_arg in zip(self.arguments, other.arguments):
+            # print("\tthis arg:", this_arg)
+            # print("\tother arg:", other_arg)
             if not this_arg.unifies(other_arg):
-                    # print("\tnon-unifiable")
+                # print("\tnon-unifiable")
                 return None
             if isinstance(this_arg, Variable):
                 # print('extend self var by const or var')
@@ -142,9 +182,7 @@ class Literal:
         self_var_indices: Dict[str, int] = dict()
         other_var_indices: Dict[str, int] = dict()
         # # print("arity:", self.arity)
-        for i in range(self.arity):
-            self_arg: Union[Variable, Constant] = self.arguments[i]
-            other_arg: Union[Variable, Constant] = other.arguments[i]
+        for i, (self_arg, other_arg) in enumerate(zip(self.arguments, other.arguments)):
             if (isinstance(self_arg, Constant) and isinstance(other_arg, Variable)) or (isinstance(self_arg, Variable) and isinstance(other_arg, Constant)):
                 return False
             if isinstance(self_arg, Constant) and not self_arg == other_arg:
@@ -168,8 +206,7 @@ class Literal:
     def __hash__(self) -> int:
         hash_str: str = self.signature
         variable_indices: Dict[str, int] = dict()
-        for i in range(self.arity):
-            arg: Union[Variable, Constant] = self.arguments[i]
+        for i, arg in enumerate(self.arguments):
             if isinstance(arg, Constant):
                 hash_str += "." + str(arg)
             else:

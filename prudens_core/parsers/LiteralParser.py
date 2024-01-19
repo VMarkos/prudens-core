@@ -1,5 +1,5 @@
 import re
-from typing import Union
+from typing import Union, List
 from prudens_core.entities.Variable import Variable
 from prudens_core.entities.Constant import Constant
 from prudens_core.errors.SyntaxErrors import InvalidArgumentError, PrudensSyntaxError, InvalidLiteralError
@@ -10,7 +10,7 @@ class ParsedLiteral:
     def __init__(self, name: str, arguments: [Union[Variable, Constant]], sign: bool, arity: int,
                  is_external: bool, is_action: bool) -> None:
         self.name: str = name
-        self.arguments: [Union[Variable, Constant]] = arguments
+        self.arguments: List[Union[Variable, Constant]] = arguments
         self.sign: bool = sign
         self.arity: int = arity
         self.is_external: bool = is_external
@@ -39,10 +39,9 @@ class LiteralParser:
             paren_pos: int = self.literal_string.find("(")
             name: str = self.literal_string[:paren_pos] if sign else self.literal_string[1:paren_pos]
             arguments_string: str = self.literal_string[paren_pos + 1:-1]
-            string_args: [str] = arguments_string.split(",")
             valid_arg_regexp: str = r'^[a-zA-Z0-9]\w*'
             predicate_arguments: [Union[Variable, Constant]] = []
-            for arg in string_args:
+            for arg in arguments_string.split(","):
                 arg = arg.strip()
                 is_valid_arg: bool = re.fullmatch(valid_arg_regexp, arg)
                 if not is_valid_arg:

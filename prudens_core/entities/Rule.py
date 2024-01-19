@@ -1,11 +1,12 @@
 from __future__ import annotations
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from copy import deepcopy
 from prudens_core.entities.Literal import Literal
 from prudens_core.entities.Context import Context
 from prudens_core.entities.Substitution import Substitution
 from prudens_core.parsers.RuleParser import RuleParser, ParsedRule
 from prudens_core.errors.RuntimeErrors import LiteralNotInContextError, DuplicateValueError
+import prudens_core.utilities.utils as utils
 
 class Rule:
     __slots__ = ("original_string", "name", "body", "head", "signature")
@@ -21,6 +22,61 @@ class Rule:
         self.body: List[Literal] = parsed_rule.body # TODO Consider splitting body to distinguish between ? and casual predicates.
         self.head: Literal = parsed_rule.head
         self.signature: str = self.__get_signature()
+
+    @classmethod
+    def from_dict(cls, init_dict: Dict) -> Rule:
+        rule = cls.__new__(cls)
+        rule.original_string = utils.parse_dict_prop(init_dict, "original_string", "Rule", default_value = "", expected_types = [str])
+        rule.name = utils.parse_dict_prop(init_dict, "name", "Rule", expected_types = [str])
+        try:
+            rule_body = init_dict["body"]
+        except KeyError:
+            raise KeyError(f"Missing key 'body' in Rule initialization from dict.")
+        if type(rule_body) != list:
+            raise TypeError(f"Expected input of type 'list' for Rule.body but received {type(rule_body)}.")
+        if len(rule_body) == 0:
+            raise ValueError(f"Body of rule {rule.name} has length 0. Rule bodies should contain at least one literal")
+        rule.body = []
+        for l in rule_body:
+            try:
+                rule.body.append(Literal.from_dict(l))
+            except KeyError as e:
+                raise KeyError(f"While parsing rule {rule.name} from a dict, its body literal {l} could not be properly "
+                                "parsed to a literal.") from e
+            except TypeError as e:
+                raise TypeError(f"While parsing rule {rule.name} from a dict, its body literal {l} could not be properly "
+                                "parsed to a literal.") from e
+            except ValueError as e:
+                raise ValueError(f"While parsing rule {rule.name} from a dict, its body literal {l} could not be properly "
+                                "parsed to a literal.") from e
+        try:
+            rule_head = init_dict["head"]
+        except KeyError:
+            raise KeyError(f"Missing key 'head' in Rule initialization from dict.")
+        if type(rule_head) != dict:
+            raise TypeError(f"Expected input of type 'dict' for Rule.head but received {type(rule_head)}.")
+        try:
+            rule.head = Literal.from_dict(rule_head)
+        except KeyError as e:
+            raise KeyError(f"While parsing rule {rule.name} from a dict, its head dict {rule_head} could not be properly "
+                            "parsed to a literal.") from e
+        except TypeError as e:
+            raise TypeError(f"While parsing rule {rule.name} from a dict, its head dict {rule_head} could not be properly "
+                            "parsed to a literal.") from e
+        except ValueError as e:
+            raise ValueError(f"While parsing rule {rule.name} from a dict, its head dict {rule_head} could not be properly "
+                            "parsed to a literal.") from e
+        rule.signature = utils.parse_dict_prop(init_dict, "signature", "Rule", default_value = rule.__get_signature(), expected_types = [str])
+        return rule
+
+    def to_dict(self) -> Dict:
+        return {
+            "original_string": self.original_string,
+            "name": self.name,
+            "body": [ x.to_dict() for x in self.body ],
+            "head": self.head.to_dict(),
+            "signature": self.signature,
+        }
 
     def trigger(self, context: Context) -> List[Tuple[Literal, Substitution]]:
         try:
@@ -54,7 +110,7 @@ class Rule:
         # FIXME
         # FIXME You should not return true but the output of self.__unify()!!! (???)
         # print(f"Rule name: {self.name}\n\tContext: {context}")
-        body_instance = [ sub.apply(literal) for literal in self.body ] # sub.apply() deepcopies, so you are fine!
+        body_instance = ( sub.apply(literal) for literal in self.body ) # sub.apply() deepcopies, so you are fine!
         try:
             unifying_subs = self.__unify(context, body_instance) # FIXME Revisit this. Consider implementing a simple solution?
             # print("subs in rule.trigger():", [str(x) for x in subs])
@@ -88,8 +144,8 @@ class Rule:
     def __unify(self, context: Context, body_instance = None) -> List[Substitution]:
         if body_instance == None:
             body_instance = self.body
-        initial_sub: Substitution = Substitution()
-        current_subs: List[Substitution] = [initial_sub]
+        # initial_sub: Substitution = Substitution()
+        current_subs: List[Substitution] = [Substitution()]
         # print("current_subs:", [str(x) for x in current_subs])
         # print("=" * 40)
         for literal in body_instance:
@@ -97,18 +153,16 @@ class Rule:
             while current_subs:
                 sub: Substitution = current_subs.pop()
                 # print("sub before extension:", sub)
-                instance: Literal = sub.apply(literal) # TODO Profiling: You are here!
+                instance: Literal = sub.apply(literal)
                 # print("instance:", instance)
                 try:
                     extensions: List[Substitution] = context.unify(instance)
                     # print("extensions:", [str(x) for x in extensions])
                 except LiteralNotInContextError as e:
                     raise e
-                if not extensions:
-                    continue
                 # new_subs: List[Substitution] = []
                 for extension in extensions:
-                    copy_sub: Substitution = deepcopy(sub)
+                    copy_sub: Substitution = deepcopy(sub) if len(extensions) > 1 else sub # No need to deepcopy for a single extension
                     try:
                         copy_sub.extend(extension)
                         new_subs.append(copy_sub)
@@ -117,7 +171,7 @@ class Rule:
                 # print("new_subs:", [str(x) for x in new_subs])
                 # print("current_subs:", [str(x) for x in current_subs])
             if new_subs:
-                current_subs = new_subs[:]
+                current_subs = new_subs#[:]
                 # print("EXTENDED current_subs:", [str(x) for x in current_subs])
             else:
                 return []

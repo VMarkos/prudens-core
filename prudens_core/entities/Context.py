@@ -5,6 +5,7 @@ from prudens_core.entities.Literal import Literal
 from prudens_core.entities.Substitution import Substitution
 from prudens_core.parsers.ContextParser import ContextParser
 from prudens_core.errors.RuntimeErrors import LiteralNotInContextError, LiteralAlreadyInContextError
+import prudens_core.utilities.utils as utils
 
 class Context:
     __slots__ = ("original_string", "facts", "_current_bucket", "_current_bucket_index",
@@ -29,6 +30,47 @@ class Context:
         self.facts is not just a dict, but actually a bucket hash-table, i.e., a dict with partial hashes as keys
         and lists of literals as values, such that each literal in the list has the same partial hash value."""
 
+    @classmethod
+    def from_dict(cls, init_dict: Dict) -> Context:
+        context = cls.__new__(cls)
+        context.original_string = utils.parse_dict_prop(init_dict, "original_string", "Context", default_value = "", expected_types = [str])
+        context._current_bucket = utils.parse_dict_prop(init_dict, "current_bucket", "Context", default_value = -1, expected_types = [int])
+        context._current_bucket_index = utils.parse_dict_prop(init_dict, "current_bucket_index", "Context", default_value = -1, expected_types = [int])
+        context._buckets = utils.parse_dict_prop(init_dict, "buckets", "Context", default_value = [], expected_types = [list])
+        context._length = utils.parse_dict_prop(init_dict, "length", "Context", default_value = 0, expected_types = [int])
+        try:
+            context_facts = init_dict["facts"]
+        except KeyError:
+            raise KeyError(f"Missing key 'facts' in Context initialization from dict.")
+        if type(context_facts) != dict:
+            raise TypeError(f"Expected input of type 'dict' for Context.facts but received {type(context_facts)}.")
+        context.facts = dict()
+        for bucket, literals in context_facts.items():
+            context.facts[bucket] = []
+            for l in literals:
+                try:
+                    context_facts[bucket].append(l.from_dict())
+                except KeyError as e:
+                    raise KeyError(f"While parsing context from a dict, literal dict {l} could not be properly "
+                                   "parsed to a literal.") from e
+                except TypeError as e:
+                    raise TypeError(f"While parsing context from a dict, literal dict {l} could not be properly "
+                                   "parsed to a literal.") from e
+                except ValueError as e:
+                    raise ValueError(f"While parsing context from a dict, literal dict {l} could not be properly "
+                                   "parsed to a literal.") from e
+        return context
+
+    def to_dict(self) -> Dict:
+        return {
+            "original_string": self.original_string,
+            "facts": { k: [l.to_dict() for l in v] for k, v in self.facts.items() },
+            "current_bucket": self._current_bucket,
+            "current_bucket_index": self._current_bucket_index,
+            "buckets": self._buckets,
+            "length": self._length,
+        }
+
     def add_literal(self, literal: Literal) -> None:
         if self.__contains(literal):
             raise LiteralAlreadyInContextError(literal)
@@ -44,7 +86,7 @@ class Context:
         self.facts[literal_hash].remove(literal)
         self._length -= 1
 
-    def unify(self, literal: Literal) -> List[Substitution]:
+    def unify(self, literal: Literal) -> List[Substitution]: # TODO Make this a generator? Check line 109 in Rule.py...
         """
         Substitution semantics are as follows:
             * [...]: First-order sub;
@@ -68,6 +110,7 @@ class Context:
             if sub:
                 subs.append(sub)
         # print("subs:", [str(x) for x in subs])
+        # subs: List[Substitution] = filter(lambda x: x, [literal.unify(fact) for fact in self.facts[literal_hash]])
         return subs
     
     def remove_conflicts_with(self, ground_facts: Context) -> None:

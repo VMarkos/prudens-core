@@ -13,33 +13,91 @@ class Substitution:
     def __init__(self, other: Union[None, Substitution] = None) -> None:
         # The two dicts (should) have at any time disjoint sets of keys.
         if other == None:
-            self.sub: Dict[Variable, Union[Variable, Constant]] = dict() # FIXME Why is this both Variable and Constant?
+            self.sub: Dict[Variable, Constant] = dict() # FIXME Why is this both Variable and Constant?
             self.equivalent_variables: Dict[Variable, Set[Variable]] = dict()
         else:
             self.sub: Dict[Variable, Union[Variable, Constant]] = other.sub
             self.equivalent_variables: Dict[Variable, Set[Variable]] = other.equivalent_variables
 
+    @classmethod
+    def from_dict(cls, init_dict) -> Variable:
+        sub = cls.__new__(cls)
+        try:
+            sub_dict = init_dict["sub"]
+        except KeyError:
+            raise KeyError(f"Missing key 'sub' in Substitution initialization from dict.")
+        if type(sub_dict) != dict:
+            raise TypeError(f"Expected input of type 'dict' for Substitution.sub but received {type(sub_dict)}.")
+        sub.sub = dict()
+        for v, c in sub_dict.items():
+            try:
+                variable = Variable.from_dict(v)
+            except KeyError as e:
+                raise KeyError(f"While parsing substitution from a dict, variable {v} could not be properly parsed.") from e
+            except TypeError as e:
+                raise TypeError(f"While parsing substitution from a dict, variable {v} could not be properly parsed.") from e
+            try:
+                constant = Constant.from_dict(c)
+            except KeyError as e:
+                raise KeyError(f"While parsing substitution from a dict, constant {c} could not be properly parsed.") from e
+            except TypeError as e:
+                raise TypeError(f"While parsing substitution from a dict, constant {c} could not be properly parsed.") from e            
+            sub.sub[variable] = constant
+        try:
+            ev_dict = init_dict["equivalent_variables"]
+        except KeyError:
+            raise KeyError(f"Missing key 'equivalent_variables' in Substitution initialization from dict.")
+        if type(ev_dict) != dict:
+            raise TypeError(f"Expected input of type 'dict' for Substitution.equivalent_variables but received {type(ev_dict)}.")
+        sub.equivalent_variables = dict()
+        for v, vs in sub_dict.items():
+            try:
+                variable = Variable.from_dict(v)
+            except KeyError as e:
+                raise KeyError(f"While parsing substitution from a dict, variable {v} could not be properly parsed.") from e
+            except TypeError as e:
+                raise TypeError(f"While parsing substitution from a dict, variable {v} could not be properly parsed.") from e
+            ev_set = set()
+            for ev in vs:
+                try:
+                    eq_var = Variable.from_dict(ev)
+                except KeyError as e:
+                    raise KeyError(f"While parsing substitution from a dict, constant {c} could not be properly parsed.") from e
+                except TypeError as e:
+                    raise TypeError(f"While parsing substitution from a dict, constant {c} could not be properly parsed.") from e
+                ev_set.add(eq_var)
+            sub.equivalent_variables[variable] = ev_set
+        return sub
+
+    def to_dict(self) -> Dict:
+        return {
+            "sub": { k.to_dict(): v.to_dict() for k, v in self.sub.itmes() },
+            "equivalent_variables": { k.to_dict(): [v.to_dict() for v in vs] for k, vs in self.equivalent_variables },
+        }
+
     def is_propositional(self) -> bool:
         return len(self.sub) == 0 and len(self.equivalent_variables) == 0
 
     def apply(self, literal: Literal) -> Literal:
+        if self.is_propositional():
+            return literal
         instance: Literal = deepcopy(literal)
         # print("self.sub:", self.sub)
         # print("self.equivalent_variables:", self.equivalent_variables)
-        if self.is_propositional():
-            # print("self.is_propositional() == True")
-            # print("self.sub:", self.sub)
-            return instance
-        for i in range(len(instance.arguments)):
-            argument = instance.arguments[i]
+        # if self.is_propositional():
+        #     # print("self.is_propositional() == True")
+        #     # print("self.sub:", self.sub)
+        #     return instance
+        for i, argument in enumerate(instance.arguments):
+            # argument = instance.arguments[i]
             if isinstance(argument, Variable):
                 # print("argument is variable:", argument)
                 # value: Union[Constant, Variable, None] = self.__apply(argument)
                 # if value:
                 #     instance.arguments[i] = value
                 try:
-                    value: Union[Constant, Variable, None] = self.__apply(argument)
-                    instance.arguments[i] = value
+                    # value: Union[Constant, Variable] = self.__apply(argument)
+                    instance.arguments[i] = self.__apply(argument)
                 except VariableNotFoundInSubstitutionError:
                     # print("VariableNotFoundInSubstitutionError")
                     pass
@@ -48,7 +106,7 @@ class Substitution:
         # print("instance before return:", [str(x) for x in instance.arguments])
         return instance
 
-    def __apply(self, variable: Variable) -> Union[Constant, Variable, None]:
+    def __apply(self, variable: Variable) -> Union[Constant, Variable]:
         """
         There is also an alternative approach. You use indices to map variables to other stuff
         (i.e., variables or constants) so that the application step is time consuming while the extension step 
@@ -88,10 +146,9 @@ class Substitution:
 
     def __extend_by_constant(self, variable: Variable, value: Constant) -> None:
         if variable in self.equivalent_variables.keys():
-            vars: Set[Variable] = self.equivalent_variables[variable]
-            for variable in vars:
-                self.sub[variable] = value
-                del self.equivalent_variables[variable]
+            for v in self.equivalent_variables[variable]:
+                self.sub[v] = value
+            del self.equivalent_variables[variable]
         elif variable not in self.sub.keys():
             self.sub[variable] = value
         elif self.sub[variable] != value:
@@ -112,8 +169,8 @@ class Substitution:
             for var in self.equivalent_variables[value].add(variable):
                 self.equivalent_variables[var] = self.equivalent_variables[value]
         else:
-            self.equivalent_variables[variable] = set([variable, value])
-            self.equivalent_variables[value] = set([value, variable])
+            self.equivalent_variables[variable] = { variable, value }
+            self.equivalent_variables[value] = { value, variable }
 
     def to_code(self) -> str:
         code_string: str = ""
