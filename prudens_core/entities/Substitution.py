@@ -4,6 +4,7 @@ from copy import deepcopy
 from prudens_core.entities.Constant import Constant
 from prudens_core.entities.Variable import Variable
 from prudens_core.errors.RuntimeErrors import VariableNotFoundInSubstitutionError, DuplicateValueError
+from prudens_core.errors.SyntaxErrors import PrudensSyntaxError
 if TYPE_CHECKING:
     from prudens_core.entities.Literal import Literal
 
@@ -30,12 +31,12 @@ class Substitution:
             raise TypeError(f"Expected input of type 'dict' for Substitution.sub but received {type(sub_dict)}.")
         sub.sub = dict()
         for v, c in sub_dict.items():
+            if type(v) != str:
+                raise TypeError(f"Expected input of type 'str' for Substitution.sub.key but received {type(v)}.")
             try:
-                variable = Variable.from_dict(v)
-            except KeyError as e:
-                raise KeyError(f"While parsing substitution from a dict, variable {v} could not be properly parsed.") from e
-            except TypeError as e:
-                raise TypeError(f"While parsing substitution from a dict, variable {v} could not be properly parsed.") from e
+                variable = Variable(v)
+            except PrudensSyntaxError as e:
+                raise SyntaxError(f"While parsing substitution from a dict, variable {v} could not be properly parsed.") from e
             try:
                 constant = Constant.from_dict(c)
             except KeyError as e:
@@ -50,13 +51,13 @@ class Substitution:
         if type(ev_dict) != dict:
             raise TypeError(f"Expected input of type 'dict' for Substitution.equivalent_variables but received {type(ev_dict)}.")
         sub.equivalent_variables = dict()
-        for v, vs in sub_dict.items():
+        for v, vs in ev_dict.items():
+            if type(v) != str:
+                raise TypeError(f"Expected input of type 'str' for Substitution.equivalent_variables.key but received {type(v)}.")
             try:
-                variable = Variable.from_dict(v)
-            except KeyError as e:
-                raise KeyError(f"While parsing substitution from a dict, variable {v} could not be properly parsed.") from e
-            except TypeError as e:
-                raise TypeError(f"While parsing substitution from a dict, variable {v} could not be properly parsed.") from e
+                variable = Variable(v)
+            except PrudensSyntaxError as e:
+                raise SyntaxError(f"While parsing substitution from a dict, variable {v} could not be properly parsed.") from e
             ev_set = set()
             for ev in vs:
                 try:
@@ -71,8 +72,8 @@ class Substitution:
 
     def to_dict(self) -> Dict:
         return {
-            "sub": { k.to_dict(): v.to_dict() for k, v in self.sub.itmes() },
-            "equivalent_variables": { k.to_dict(): [v.to_dict() for v in vs] for k, vs in self.equivalent_variables },
+            "sub": { str(k): v.to_dict() for k, v in self.sub.itmes() },
+            "equivalent_variables": { str(k): [v.to_dict() for v in vs] for k, vs in self.equivalent_variables },
         }
 
     def is_propositional(self) -> bool:

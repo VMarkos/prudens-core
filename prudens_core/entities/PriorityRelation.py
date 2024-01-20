@@ -56,22 +56,25 @@ class PriorityRelation:
             except ValueError as e:
                 raise ValueError(f"While parsing priority relation from a dict, literal dict {head} in provided rule_heads "
                                "could not be properly parsed to a literal.") from e
-        try:
-            candidate_conflicts = init_dict["candidate_conflicts"]
-        except KeyError:
-            raise KeyError(f"Missing key 'candidate_conflicts' in PriorityRelation initialization from dict.")
-        if type(candidate_conflicts) != dict:
-            raise TypeError(f"Expected input of type 'dict' for PriorityRelation.candidate_conflicts but received {type(candidate_conflicts)}.")
-        pr.candidate_conflicts = dict()
-        for rn, ccs in candidate_conflicts.items():
-            if type(rn) != str:
-                raise TypeError(f"Expected input of type 'str' for PriorityRelation.candidate_conflicts.keys but received {type(rn)}.")
-            cc_set = set()
-            for cc in ccs:
-                if type(cc) != str:
-                    raise TypeError(f"Expected input of type 'str' for PriorityRelation.candidate_conflicts.values but received {type(cc)}.")
-                cc_set.add(cc)
-            pr.candidate_conflicts[rn] = cc_set
+        pr.candidate_conflicts = { rn_1: {rn_2 for rn_2, rh_2 in pr.rule_heads.items()\
+                                            if rh_1.name == rh_2.name and rh_1.sign != rh_2.sign}\
+                                                for rn_1, rh_1 in pr.rule_heads.items() }
+        # try:
+        #     candidate_conflicts = init_dict["candidate_conflicts"]
+        # except KeyError:
+        #     raise KeyError(f"Missing key 'candidate_conflicts' in PriorityRelation initialization from dict.")
+        # if type(candidate_conflicts) != dict:
+        #     raise TypeError(f"Expected input of type 'dict' for PriorityRelation.candidate_conflicts but received {type(candidate_conflicts)}.")
+        # pr.candidate_conflicts = dict()
+        # for rn, ccs in candidate_conflicts.items():
+        #     if type(rn) != str:
+        #         raise TypeError(f"Expected input of type 'str' for PriorityRelation.candidate_conflicts.keys but received {type(rn)}.")
+        #     cc_set = set()
+        #     for cc in ccs:
+        #         if type(cc) != str:
+        #             raise TypeError(f"Expected input of type 'str' for PriorityRelation.candidate_conflicts.values but received {type(cc)}.")
+        #         cc_set.add(cc)
+        #     pr.candidate_conflicts[rn] = cc_set
         try:
             rule_indices = init_dict["rule_indices"]
         except KeyError:
@@ -109,8 +112,7 @@ class PriorityRelation:
         return {
             "original_string": self.original_string,
             "rule_heads": { rn: head.to_dict() for rn, head in self.rule_heads.items() },
-            "candidate_conflicts": { rn: list(conflicts) for rn, conflicts in self.candidate_conflicts.items() },
-            "rule_indices": self.rule_indices, # TODO Remember to parse both this and `indice_rules` in `from_dict()`!
+            "rule_indices": self.rule_indices,
             "priorities": [list(p) for p in self.priorities],
             "default": self.default,
         }

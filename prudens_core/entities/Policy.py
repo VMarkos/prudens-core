@@ -1,10 +1,8 @@
 from __future__ import annotations
 from typing import Dict, Set, List, Tuple, Iterator, overload, Union, FrozenSet
 from copy import deepcopy
+from math import inf
 import re
-import numpy as np
-from numpy.typing import ArrayLike
-from scipy.sparse import dok_matrix
 from prudens_core.entities.Literal import Literal
 from prudens_core.entities.Rule import Rule
 from prudens_core.entities.Context import Context
@@ -72,23 +70,24 @@ class Policy:
         try:
             inferences = init_dict["inferences"]
         except KeyError:
-            inferences = dict()
-        if type(inferences) != dict:
-            raise TypeError(f"Expected input of type 'dict' for Policy.inferences but received {type(inferences)}.")
-        try:
-            policy.inferences = Context.from_dict(inferences)
-        except KeyError as e:
-            raise KeyError(f"While parsing a policy from a dict, inferences could not be properly parsed.") from e
-        except TypeError as e:
-            raise TypeError(f"While parsing a policy from a dict, inferences could not be properly parsed.") from e
-        except ValueError as e:
-            raise ValueError(f"While parsing a policy from a dict, inferences could not be properly parsed.") from e
+            inferences = Context()
+        else:
+            if type(inferences) != dict:
+                raise TypeError(f"Expected input of type 'dict' for Policy.inferences but received {type(inferences)}.")
+            try:
+                policy.inferences = Context.from_dict(inferences)
+            except KeyError as e:
+                raise KeyError(f"While parsing a policy from a dict, inferences could not be properly parsed.") from e
+            except TypeError as e:
+                raise TypeError(f"While parsing a policy from a dict, inferences could not be properly parsed.") from e
+            except ValueError as e:
+                raise ValueError(f"While parsing a policy from a dict, inferences could not be properly parsed.") from e
         try:
             dilemmas = init_dict["dilemmas"]
         except KeyError:
             dilemmas = dict()
-        if type(inferences) != dict:
-            raise TypeError(f"Expected input of type 'dict' for Policy.inferences but received {type(dilemmas)}.")
+        if type(dilemmas) != dict:
+            raise TypeError(f"Expected input of type 'dict' for Policy.dilemmas but received {type(dilemmas)}.")
         policy.dilemmas = dict()
         for l, d in dilemmas.items():
             try:
@@ -107,7 +106,7 @@ class Policy:
             inferred_by = init_dict["inferred_by"]
         except KeyError:
             inferred_by = dict()
-        if type(inferences) != dict:
+        if type(inferred_by) != dict:
             raise TypeError(f"Expected input of type 'dict' for Policy.inferred_by but received {type(inferred_by)}.")
         policy.inferred_by = dict()
         for l, instances in inferred_by.items():
@@ -150,7 +149,7 @@ class Policy:
 
     def infer(self,
               context: Context,
-              max_depth: float = np.inf,
+              max_depth: float = inf,
               unittest_params: Union[None, Dict] = None) -> None:
         inference_graph: InferenceGraph = InferenceGraph(self.rules,
                                                          self.rule_hasse_diagram,
@@ -355,7 +354,7 @@ class InferenceGraph:
         # str_inf_by = { str(key): { x: [str(s) for s in y] for x, y in val.items() } for key, val in self.inferred_by.items() }
         # print("str_inf_by:", str_inf_by)
     
-    def __compute_ig(self, max_depth: float = np.inf, unittest_params: Union[None, Dict] = None) -> None:
+    def __compute_ig(self, max_depth: float = inf, unittest_params: Union[None, Dict] = None) -> None:
         inferred: bool = True
         facts: Context = deepcopy(self.context)
         depth: int = 0
@@ -464,9 +463,7 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
         self.existing_layers: List[int] = sorted(list(self.layers.keys()))
 
     def __initialize_edges(self) -> None:
-        n: int = len(self.nodes)
-        edges: ArrayLike = np.zeros((n, n)) # TODO Revisit this! Maybe a set of tuples? Check what operations you make on edges!
-        self.edges: dok_matrix = dok_matrix(edges)
+        self.edges: Set[Tuple[int]] = set()
         for signature in self.nodes.keys():
             self.__update_edges(signature)
 
@@ -480,7 +477,7 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
             for super_signature in self.__exclude_supersets(super_excluded, self.layers[super_layer][:]):
                 if signature.is_subsignature(super_signature):
                     super_index: int = self.node_indices[super_signature]
-                    self.edges[node_index, super_index] = 1
+                    self.edges.add((node_index, super_index))
                     super_added.append(super_index)
                 super_excluded.append(super_signature)
         sub_added: List[int] = []
@@ -489,12 +486,15 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
             for sub_signature in self.__exclude_subsets(sub_excluded, self.layers[sub_layer][:]):
                 if sub_signature.is_subsignature(signature):
                     sub_index: int = self.node_indices[sub_signature]
-                    self.edges[sub_index, node_index] = 1
+                    self.edges.add((sub_index, node_index))
                     sub_added.append(sub_index)
                 sub_excluded.append(sub_signature)
-        for end_node in super_added:
+        for end_node in super_added: # FIXME Why is this loop needed?
             for start_node in sub_added:
-                self.edges[start_node, end_node] = 0
+                try:
+                    self.edges.remove((start_node, end_node))
+                except KeyError:
+                    pass
 
     def __exclude_supersets(self, sub_signatures: List[RuleSignature], signatures: List[RuleSignature]) -> List[RuleSignature]:
         if len(sub_signatures) == 0:
@@ -525,8 +525,6 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
             n: int = len(self.nodes)
             self.node_indices[signature] = n
             self.node_indices_rev[n] = signature
-            self.edges.resize((n + 1, n + 1))
-            self.edges.reshape((n + 1, n + 1))
             self.nodes[signature] = rules
         else:
             for rule in rules:
@@ -573,17 +571,15 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
         old_ends: List[int] = []
         old_starts: List[int] = []
         for i in range(n):
-            if self.edges[node_index, i] == 1:
+            if (node_index, i) in self.edges:
                 old_ends.append(i)
-                del self.edges[node_index, i]
-            if self.edges[i, node_index] == 1:
+                self.edges.remove((node_index, i))
+            if (i, node_index) in self.edges:
                 old_starts.append(i)
-                del self.edges[i, node_index]
+                self.edges.remove((i, node_index))
         for start in old_starts:
             for end in old_ends:
-                self.edges[start, end] = 1
-        self.edges.resize((n - 1, n - 1))
-        self.edges.reshape((n - 1, n - 1))
+                self.edges.add((start, end))
         self.layers[signature_size].remove(signature)
         if len(self.layers[signature]) == 0:
             self.__remove_layer(signature_size)
@@ -696,7 +692,7 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
         n: int = len(self.nodes)
         children: List[int] = []
         for i in range(n):
-            if self.edges[index, i] == 1:
+            if (index, i) in self.edges:
                 children.append(i)
         return children
 

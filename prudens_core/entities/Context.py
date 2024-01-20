@@ -49,7 +49,7 @@ class Context:
             context.facts[bucket] = []
             for l in literals:
                 try:
-                    context_facts[bucket].append(l.from_dict())
+                    context.facts[bucket].append(Literal.from_dict(l))
                 except KeyError as e:
                     raise KeyError(f"While parsing context from a dict, literal dict {l} could not be properly "
                                    "parsed to a literal.") from e
