@@ -9,12 +9,30 @@ from prudens_core.entities.Context import Context
 from prudens_core.entities.Substitution import Substitution
 from prudens_core.entities.PriorityRelation import PriorityRelation
 from prudens_core.parsers.PolicyParser import ParsedPolicy, PolicyParser
-from prudens_core.errors.RuntimeErrors import RuleNotFoundError, LiteralNotInContextError, LiteralAlreadyInContextError, UnresolvedConflictsError
-from prudens_core.errors.SyntaxErrors import PrudensSyntaxError, MissingDelimiterError, MultipleDelimiterError
+from prudens_core.errors.RuntimeErrors import (
+    RuleNotFoundError,
+    LiteralNotInContextError,
+    LiteralAlreadyInContextError,
+    UnresolvedConflictsError,
+)
+from prudens_core.errors.SyntaxErrors import (
+    PrudensSyntaxError,
+    MissingDelimiterError,
+    MultipleDelimiterError,
+)
 import prudens_core.utilities.utils as utils
 
+
 class Policy:
-    __slots__ = ("original_string", "rules", "rule_hasse_diagram", "priorities", "inferences", "dilemmas", "inferred_by")
+    __slots__ = (
+        "original_string",
+        "rules",
+        "rule_hasse_diagram",
+        "priorities",
+        "inferences",
+        "dilemmas",
+        "inferred_by",
+    )
 
     def __init__(self, policy_string: str) -> None:
         self.original_string: str = policy_string
@@ -33,138 +51,212 @@ class Policy:
     @classmethod
     def from_dict(cls, init_dict: Dict) -> Policy:
         policy = cls.__new__(cls)
-        policy.original_string = utils.parse_dict_prop(init_dict, "original_string", "Policy", default_value = "", expected_types = [str])
+        policy.original_string = utils.parse_dict_prop(
+            init_dict,
+            "original_string",
+            "Policy",
+            default_value="",
+            expected_types=[str],
+        )
         try:
             rules = init_dict["rules"]
         except KeyError:
             raise KeyError(f"Missing key 'rules' in Policy initialization from dict.")
         if type(rules) != dict:
-            raise TypeError(f"Expected input of type 'dict' for Policy.rules but received {type(rules)}.")
+            raise TypeError(
+                f"Expected input of type 'dict' for Policy.rules but received {type(rules)}."
+            )
         policy.rules = dict()
         for rn, rule in rules.items():
             if type(rn) != str:
-                raise TypeError(f"Expected input of type 'str' for Policy.rules.key but received {type(rn)}.")
+                raise TypeError(
+                    f"Expected input of type 'str' for Policy.rules.key but received {type(rn)}."
+                )
             try:
                 policy.rules[rn] = Rule.from_dict(rule)
             except KeyError as e:
-                raise KeyError(f"While parsing a policy from a dict, rule {rn} could not be properly parsed.") from e
+                raise KeyError(
+                    f"While parsing a policy from a dict, rule {rn} could not be properly parsed."
+                ) from e
             except TypeError as e:
-                raise TypeError(f"While parsing a policy from a dict, rule {rn} could not be properly parsed.") from e
+                raise TypeError(
+                    f"While parsing a policy from a dict, rule {rn} could not be properly parsed."
+                ) from e
             except ValueError as e:
-                raise ValueError(f"While parsing a policy from a dict, rule {rn} could not be properly parsed.") from e 
+                raise ValueError(
+                    f"While parsing a policy from a dict, rule {rn} could not be properly parsed."
+                ) from e
         policy.rule_hasse_diagram = HasseDiagram(policy.rules)
         try:
             priorities = init_dict["priorities"]
         except KeyError:
-            raise KeyError(f"Missing key 'priorities' in Policy initialization from dict.")
+            raise KeyError(
+                f"Missing key 'priorities' in Policy initialization from dict."
+            )
         if type(priorities) != dict:
-            raise TypeError(f"Expected input of type 'dict' for Policy.priorities but received {type(priorities)}.")
+            raise TypeError(
+                f"Expected input of type 'dict' for Policy.priorities but received {type(priorities)}."
+            )
         try:
             policy.priorities = PriorityRelation.from_dict(priorities)
         except KeyError as e:
-            raise KeyError(f"While parsing a policy from a dict, priorities could not be properly parsed.") from e
+            raise KeyError(
+                f"While parsing a policy from a dict, priorities could not be properly parsed."
+            ) from e
         except TypeError as e:
-            raise TypeError(f"While parsing a policy from a dict, priorities could not be properly parsed.") from e
+            raise TypeError(
+                f"While parsing a policy from a dict, priorities could not be properly parsed."
+            ) from e
         except ValueError as e:
-            raise ValueError(f"While parsing a policy from a dict, priorities could not be properly parsed.") from e
+            raise ValueError(
+                f"While parsing a policy from a dict, priorities could not be properly parsed."
+            ) from e
         try:
             inferences = init_dict["inferences"]
         except KeyError:
             inferences = Context()
         else:
             if type(inferences) != dict:
-                raise TypeError(f"Expected input of type 'dict' for Policy.inferences but received {type(inferences)}.")
+                raise TypeError(
+                    f"Expected input of type 'dict' for Policy.inferences but received {type(inferences)}."
+                )
             try:
                 policy.inferences = Context.from_dict(inferences)
             except KeyError as e:
-                raise KeyError(f"While parsing a policy from a dict, inferences could not be properly parsed.") from e
+                raise KeyError(
+                    f"While parsing a policy from a dict, inferences could not be properly parsed."
+                ) from e
             except TypeError as e:
-                raise TypeError(f"While parsing a policy from a dict, inferences could not be properly parsed.") from e
+                raise TypeError(
+                    f"While parsing a policy from a dict, inferences could not be properly parsed."
+                ) from e
             except ValueError as e:
-                raise ValueError(f"While parsing a policy from a dict, inferences could not be properly parsed.") from e
+                raise ValueError(
+                    f"While parsing a policy from a dict, inferences could not be properly parsed."
+                ) from e
         try:
             dilemmas = init_dict["dilemmas"]
         except KeyError:
             dilemmas = dict()
         if type(dilemmas) != dict:
-            raise TypeError(f"Expected input of type 'dict' for Policy.dilemmas but received {type(dilemmas)}.")
+            raise TypeError(
+                f"Expected input of type 'dict' for Policy.dilemmas but received {type(dilemmas)}."
+            )
         policy.dilemmas = dict()
         for l, d in dilemmas.items():
             try:
                 lit = Literal(l)
             except PrudensSyntaxError as e:
-                raise SyntaxError("While parsing a policy from a dict, dilemmas could not be properly parsed.") from e
+                raise SyntaxError(
+                    "While parsing a policy from a dict, dilemmas could not be properly parsed."
+                ) from e
             try:
                 policy.dilemmas[lit] = Dilemma.from_dict()
             except KeyError as e:
-                raise KeyError(f"While parsing a policy from a dict, dilemma {d} could not be properly parsed.") from e
+                raise KeyError(
+                    f"While parsing a policy from a dict, dilemma {d} could not be properly parsed."
+                ) from e
             except TypeError as e:
-                raise TypeError(f"While parsing a policy from a dict, dilemma {d} could not be properly parsed.") from e
+                raise TypeError(
+                    f"While parsing a policy from a dict, dilemma {d} could not be properly parsed."
+                ) from e
             except ValueError as e:
-                raise ValueError(f"While parsing a policy from a dict, dilemma {d} could not be properly parsed.") from e
+                raise ValueError(
+                    f"While parsing a policy from a dict, dilemma {d} could not be properly parsed."
+                ) from e
         try:
             inferred_by = init_dict["inferred_by"]
         except KeyError:
             inferred_by = dict()
         if type(inferred_by) != dict:
-            raise TypeError(f"Expected input of type 'dict' for Policy.inferred_by but received {type(inferred_by)}.")
+            raise TypeError(
+                f"Expected input of type 'dict' for Policy.inferred_by but received {type(inferred_by)}."
+            )
         policy.inferred_by = dict()
         for l, instances in inferred_by.items():
             try:
                 lit = Literal(l)
             except PrudensSyntaxError as e:
-                raise SyntaxError("While parsing a policy from a dict, inferred_by could not be properly parsed.") from e
-            policy.inferred_by[lit] = []
-            for instance_dict in instances:
-                if type(instance_dict) != dict:
-                    raise TypeError(f"Expected input of type 'dict' for Policy.inferred_by.literal.values but received {type(instance_dict)}.")
-                for rn, sub_list in instance_dict.items():
+                raise SyntaxError(
+                    "While parsing a policy from a dict, inferred_by could not be properly parsed."
+                ) from e
+            policy.inferred_by[lit] = set()
+            for inferring_rules in instances:
+                if type(inferring_rules) != dict:
+                    raise TypeError(
+                        f"Expected input of type 'dict' for Policy.inferred_by.literal.values but received {type(instance_dict)}."
+                    )
+                for rn, sub_list in inferring_rules.items():
                     if type(rn) != str:
-                        raise TypeError(f"Expected input of type 'str' for rule name but received {type(rn)}.")
+                        raise TypeError(
+                            f"Expected input of type 'str' for rule name but received {type(rn)}."
+                        )
                     if type(sub_list) != list:
-                        raise TypeError(f"Expected input of type 'list' for list of subs but received {type(sub_list)}.")
+                        raise TypeError(
+                            f"Expected input of type 'list' for list of subs but received {type(sub_list)}."
+                        )
                     for s in sub_list:
                         try:
                             sub = Substitution.from_dict(s)
                         except KeyError as e:
-                            raise KeyError(f"While parsing a policy from a dict, substitution {s} could not be properly parsed.") from e
+                            raise KeyError(
+                                f"While parsing a policy from a dict, substitution {s} could not be properly parsed."
+                            ) from e
                         except TypeError as e:
-                            raise TypeError(f"While parsing a policy from a dict, substitution {s} could not be properly parsed.") from e
+                            raise TypeError(
+                                f"While parsing a policy from a dict, substitution {s} could not be properly parsed."
+                            ) from e
                         except ValueError as e:
-                            raise ValueError(f"While parsing a policy from a dict, substitution {s} could not be properly parsed.") from e
-                        policy.inferred_by[lit].append(sub)
+                            raise ValueError(
+                                f"While parsing a policy from a dict, substitution {s} could not be properly parsed."
+                            ) from e
+                        policy.inferred_by[lit].add(sub)
         return policy
 
     def to_dict(self) -> Dict:
         return {
             "original_string": self.original_string,
-            "rules": { rn: rule.to_dict() for rn, rule in self.rules.items() },
+            "rules": {rn: rule.to_dict() for rn, rule in self.rules.items()},
             "priorities": self.priorities.to_dict(),
             "inferences": self.inferences.to_dict(),
-            "dilemmas": { str(l): d.to_dict() for l, d in self.dilemmas.items() }, # TODO Implement `to_dict()` for dilemmas!
-            "inferred_by": { str(l): [
-                { rn: sub.to_dict() for rn, sub in instance_dict.items() } for instance_dict in inferring_rules
-            ] for l, inferring_rules in self.inferred_by.items() }, # TODO Implement `to_dict()` for substitutions!
+            "dilemmas": {str(l): d.to_dict() for l, d in self.dilemmas.items()},
+            "inferred_by": {
+                str(l): [
+                    {
+                        rn: [sub.to_dict() for sub in subs_set]
+                        for rn, subs_set in inferring_rules.items()
+                    }
+                ]
+                for l, inferring_rules in self.inferred_by.items()
+            },
         }
 
-    def infer(self,
-              context: Context,
-              max_depth: float = inf,
-              unittest_params: Union[None, Dict] = None) -> None:
-        inference_graph: InferenceGraph = InferenceGraph(self.rules,
-                                                         self.rule_hasse_diagram,
-                                                         context,
-                                                         unittest_params = unittest_params)
+    def infer(
+        self,
+        context: Context,
+        max_depth: float = inf,
+        unittest_params: Union[None, Dict] = None,
+    ) -> None:
+        inference_graph: InferenceGraph = InferenceGraph(
+            self.rules,
+            self.rule_hasse_diagram,
+            context,
+            unittest_params=unittest_params,
+        )
         # print("=" * 25)
         # print("ig complete")
-        marked_literals: Context = context
+        marked_literals: Context = (
+            context  # NOTE Policy.infer() consumes the context, polluting it with inferences!
+        )
         dilemmas: Dict[Literal, Dilemma] = dict()
         inferred: bool = True
         depth: int = 0
         while inferred and depth < max_depth:
             inferred = False
             inference_graph.remove_conflicts_with(marked_literals)
-            inferring_rules: Dict[str, Set[Substitution]] = inference_graph.get_consistent_rules()
+            inferring_rules: Dict[str, Set[Substitution]] = (
+                inference_graph.get_consistent_rules()
+            )
             # print("inf rules keys:", inferring_rules.keys())
             # print("inf rules values:", [[str(x) for x in v] for v in inferring_rules.values()])
             for rule_name in self.rule_hasse_diagram:
@@ -181,15 +273,21 @@ class Policy:
                         continue
                     instance: Literal = sub.apply(rule.head)
                     try:
-                        is_prior: bool = self.priorities.is_prior(rule_name, inferring_rules, sub)
+                        is_prior: bool = self.priorities.is_prior(
+                            rule_name, inferring_rules, sub
+                        )
                     except UnresolvedConflictsError as e:
                         is_prior: bool = False
-                        new_dilemma: Dilemma = Dilemma(sub.apply(rule.head), set(e.conflicts))
+                        new_dilemma: Dilemma = Dilemma(
+                            sub.apply(rule.head), set(e.conflicts)
+                        )
                         positive_head: Literal = new_dilemma.literal
                         # new_dilemmas: List[FrozenSet[str, str]] = e.conflicts
                         # print("Before:", positive_head, [str(x) for x in dilemmas.keys()])
                         if positive_head in dilemmas.keys():
-                            dilemmas[positive_head] = dilemmas[positive_head].union(new_dilemma)
+                            dilemmas[positive_head] = dilemmas[positive_head].union(
+                                new_dilemma
+                            )
                         else:
                             dilemmas[positive_head] = new_dilemma
                     # print("After:", positive_head, [str(x) for x in dilemmas.keys()])
@@ -207,8 +305,10 @@ class Policy:
                     except LiteralAlreadyInContextError:
                         continue
                     inferred = True
-                    if not instance in self.inferred_by.keys(): # FIXME Again, this has been computed. Nevertheless, is it efficient to remove elements from ig.inferred_by or is this more/equally efficient?
-                        self.inferred_by[instance] = { rule_name: set([sub]) }
+                    if (
+                        not instance in self.inferred_by.keys()
+                    ):  # FIXME Again, this has been computed. Nevertheless, is it efficient to remove elements from ig.inferred_by or is this more/equally efficient?
+                        self.inferred_by[instance] = {rule_name: set([sub])}
                     elif not rule_name in self.inferred_by[instance].keys():
                         self.inferred_by[instance][rule_name] = set([sub])
                     else:
@@ -218,7 +318,7 @@ class Policy:
         # print("Marked literals: ", marked_literals)
         self.inferences = marked_literals
         self.dilemmas = dilemmas
-    
+
     def __str__(self) -> str:
         policy_str: str = "@Policy\n"
         for rule in self.rules.values():
@@ -226,12 +326,15 @@ class Policy:
         policy_str += "\n@Priorities\n" + str(self.priorities)
         return policy_str
 
+
 class Dilemma:
     """This class is used merely for unit testing facilitation, so it is not intended for broader use."""
 
     __slots__ = ("literal", "conflicts")
 
-    def __init__(self, literal: Literal = None, conflicts: Set[FrozenSet[str]] = None) -> None:
+    def __init__(
+        self, literal: Literal = None, conflicts: Set[FrozenSet[str]] = None
+    ) -> None:
         """`self.literal` is always a positive instance of the literal!"""
         if literal and conflicts:
             positive_literal: Literal = deepcopy(literal)
@@ -252,7 +355,7 @@ class Dilemma:
             dilemma.literal = Literal(split_dilemma[0].strip())
         except PrudensSyntaxError as e:
             raise e
-        conflict_delim = r'(?<=\})\s*,'
+        conflict_delim = r"(?<=\})\s*,"
         # FIXME You need to throw proper exceptions at this point!
         conflicts_set = set()
         # # print("conflicts after split_delim:", conflicts)
@@ -274,33 +377,47 @@ class Dilemma:
         try:
             literal = init_dict["literal"]
         except KeyError:
-            raise KeyError(f"Missing key 'literal' in Dilemma initialization from dict.")
+            raise KeyError(
+                f"Missing key 'literal' in Dilemma initialization from dict."
+            )
         try:
             dilemma.literal = Literal.from_dict(literal)
         except KeyError as e:
-            raise KeyError(f"While parsing a dilemma from a dict, literal {literal} could not be properly parsed.") from e
+            raise KeyError(
+                f"While parsing a dilemma from a dict, literal {literal} could not be properly parsed."
+            ) from e
         except TypeError as e:
-            raise TypeError(f"While parsing a dilemma from a dict, literal {literal} could not be properly parsed.") from e
+            raise TypeError(
+                f"While parsing a dilemma from a dict, literal {literal} could not be properly parsed."
+            ) from e
         except ValueError as e:
-            raise ValueError(f"While parsing a dilemma from a dict, literal {literal} could not be properly parsed.") from e
+            raise ValueError(
+                f"While parsing a dilemma from a dict, literal {literal} could not be properly parsed."
+            ) from e
         try:
             conflicts = init_dict["conflicts"]
         except KeyError:
-            raise KeyError(f"Missing key 'conflicts' in Dilemma initialization from dict.")
+            raise KeyError(
+                f"Missing key 'conflicts' in Dilemma initialization from dict."
+            )
         dilemma.conflicts = set()
         for cs in conflicts:
             if type(cs) != list:
-                raise TypeError(f"Expected input of type 'list' for Dilemma.conflicts.value but received {type(cs)}.")
+                raise TypeError(
+                    f"Expected input of type 'list' for Dilemma.conflicts.value but received {type(cs)}."
+                )
             for c in cs:
                 if type(c) != str:
-                    raise TypeError(f"Expected input of type 'str' for dilemma conflict (rule name) but received {type(c)}.")
+                    raise TypeError(
+                        f"Expected input of type 'str' for dilemma conflict (rule name) but received {type(c)}."
+                    )
                 dilemma.conflicts.add(frozenset(c))
         return dilemma
 
     def to_dict(self) -> Dict:
         return {
             "literal": self.literal.to_dict(),
-            "conflicts": [ list(x) for x in self.conflicts ],
+            "conflicts": [list(x) for x in self.conflicts],
         }
 
     def append_conflict(self, conflict: FrozenSet[str]) -> None:
@@ -312,8 +429,8 @@ class Dilemma:
         # for conflict in other.conflicts:
         #     union_dilemma.append_conflict(conflict)
         return union_dilemma
-    
-    def __deepcopy__(self, memodict = {}) -> Dilemma:
+
+    def __deepcopy__(self, memodict={}) -> Dilemma:
         copycat: Dilemma = Dilemma()
         copycat.literal = deepcopy(self.literal)
         copycat.conflicts = {x for x in self.conflicts}
@@ -329,32 +446,49 @@ class Dilemma:
             if conflict not in __other.conflicts:
                 return False
         return True
-    
+
     def __str__(self) -> str:
-        return str(self.literal) + ": [" + ", ".join(["{" + ", ".join(x) + "}" for x in self.conflicts]) + "]"
+        return (
+            str(self.literal)
+            + ": ["
+            + ", ".join(["{" + ", ".join(x) + "}" for x in self.conflicts])
+            + "]"
+        )
+
 
 class InferenceGraph:
-    __slots__ = ("rules", "rule_hd", "context", "inferred_by", "inferences", "consistent")
+    __slots__ = (
+        "rules",
+        "rule_hd",
+        "context",
+        "inferred_by",
+        "inferences",
+        "consistent",
+    )
 
-    def __init__(self,
-                 rules: Dict[str, Rule],
-                 rule_hd: HasseDiagram,
-                 context: Context,
-                 unittest_params: Union[None, Dict] = None) -> None:
+    def __init__(
+        self,
+        rules: Dict[str, Rule],
+        rule_hd: HasseDiagram,
+        context: Context,
+        unittest_params: Union[None, Dict] = None,
+    ) -> None:
         self.rules: Dict[str, Rule] = rules
-        self.rule_hd: HasseDiagram = rule_hd # FIXME Maybe deepcopy this.
+        self.rule_hd: HasseDiagram = rule_hd  # FIXME Maybe deepcopy this.
         self.context: Context = context
         self.inferred_by: Dict[Literal, List[Dict[str, Set[Substitution]]]] = dict()
         self.inferences: Context = Context()
         self.consistent: Context = Context()
         # print("init complete\n" + "=" * 40)
-        self.__compute_ig(unittest_params = unittest_params)
+        self.__compute_ig(unittest_params=unittest_params)
         # print(str(self.inferences))
         # Just to stringify
         # str_inf_by = { str(key): { x: [str(s) for s in y] for x, y in val.items() } for key, val in self.inferred_by.items() }
         # print("str_inf_by:", str_inf_by)
-    
-    def __compute_ig(self, max_depth: float = inf, unittest_params: Union[None, Dict] = None) -> None:
+
+    def __compute_ig(
+        self, max_depth: float = inf, unittest_params: Union[None, Dict] = None
+    ) -> None:
         inferred: bool = True
         facts: Context = deepcopy(self.context)
         depth: int = 0
@@ -389,7 +523,7 @@ class InferenceGraph:
                         continue
                     inferred = True
                     if not literal in inferred_by.keys():
-                        inferred_by[literal] = { rule_name: set([sub]) }
+                        inferred_by[literal] = {rule_name: set([sub])}
                     elif not rule_name in inferred_by[literal].keys():
                         inferred_by[literal][rule_name] = set([sub])
                     else:
@@ -398,7 +532,9 @@ class InferenceGraph:
         self.inferences = facts
         # print("inferred_by:", {str(l): {str(k): {str(x) for x in val} for k, val in v.items()} for l, v in inferred_by.items()})
         self.inferred_by = inferred_by
-        self.consistent = deepcopy(self.inferences) # FIXME This ensures an absurd behaviour if called before remove_conflicts_with
+        self.consistent = deepcopy(
+            self.inferences
+        )  # FIXME This ensures an absurd behaviour if called before remove_conflicts_with
         if unittest_params:
             unittest_params["depth"] = depth
             unittest_params["hd_iterations"] = hd_iterations
@@ -426,13 +562,22 @@ class InferenceGraph:
                     instances[rule_name] = instances[rule_name].union(subs)
             # instances = instances.union(set(self.inferred_by[literal].keys()))
         return instances
-    
+
     """Add and remove rules in an inference graph in a consistent way that saves up time. The same might apply
     to contexts, as well."""
 
-class HasseDiagram: # Implemented specifically for use within Prudens, not for wider audience.
-    __slots__ = ("_last_call", "nodes", "layers", "node_indices", "node_indices_rev", "front",
-                 "existing_layers", "edges")
+
+class HasseDiagram:  # Implemented specifically for use within Prudens, not for wider audience.
+    __slots__ = (
+        "_last_call",
+        "nodes",
+        "layers",
+        "node_indices",
+        "node_indices_rev",
+        "front",
+        "existing_layers",
+        "edges",
+    )
 
     def __init__(self, nodes: Dict[str, Rule]) -> None:
         self._last_call: LastCall = LastCall("")
@@ -441,9 +586,9 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
         # print("self.nodes:", {str(item[0]): str(item[1]) for item in self.nodes.items()})
 
     def __initialize_nodes(self, nodes: Dict[str, Rule]) -> None:
-        self.nodes: Dict[RuleSignature: List[str]] = dict()
+        self.nodes: Dict[RuleSignature : List[str]] = dict()
         self.layers: Dict[int, List[RuleSignature]] = dict()
-        self.node_indices: Dict[RuleSignature: int] = dict()
+        self.node_indices: Dict[RuleSignature:int] = dict()
         self.node_indices_rev: Dict[int, RuleSignature] = dict()
         for name, rule in nodes.items():
             signature: RuleSignature = RuleSignature(rule.signature)
@@ -458,8 +603,8 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
                 self.layers[signature_size].append(signature)
         node_keys = list(self.nodes.keys())
         self.front: List[RuleSignature] = node_keys[:]
-        self.node_indices = { node_keys[i]: i for i in range(len(node_keys)) }
-        self.node_indices_rev = { item[1]: item[0] for item in self.node_indices.items() }
+        self.node_indices = {node_keys[i]: i for i in range(len(node_keys))}
+        self.node_indices_rev = {item[1]: item[0] for item in self.node_indices.items()}
         self.existing_layers: List[int] = sorted(list(self.layers.keys()))
 
     def __initialize_edges(self) -> None:
@@ -473,8 +618,10 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
         node_index: int = self.node_indices[signature]
         super_added: List[int] = []
         super_excluded: List[RuleSignature] = []
-        for super_layer in self.existing_layers[(layer_index + 1):]:
-            for super_signature in self.__exclude_supersets(super_excluded, self.layers[super_layer][:]):
+        for super_layer in self.existing_layers[(layer_index + 1) :]:
+            for super_signature in self.__exclude_supersets(
+                super_excluded, self.layers[super_layer][:]
+            ):
                 if signature.is_subsignature(super_signature):
                     super_index: int = self.node_indices[super_signature]
                     self.edges.add((node_index, super_index))
@@ -483,41 +630,51 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
         sub_added: List[int] = []
         sub_excluded: List[RuleSignature] = []
         for sub_layer in self.existing_layers[:layer_index]:
-            for sub_signature in self.__exclude_subsets(sub_excluded, self.layers[sub_layer][:]):
+            for sub_signature in self.__exclude_subsets(
+                sub_excluded, self.layers[sub_layer][:]
+            ):
                 if sub_signature.is_subsignature(signature):
                     sub_index: int = self.node_indices[sub_signature]
                     self.edges.add((sub_index, node_index))
                     sub_added.append(sub_index)
                 sub_excluded.append(sub_signature)
-        for end_node in super_added: # FIXME Why is this loop needed?
+        for end_node in super_added:  # FIXME Why is this loop needed?
             for start_node in sub_added:
                 try:
                     self.edges.remove((start_node, end_node))
                 except KeyError:
                     pass
 
-    def __exclude_supersets(self, sub_signatures: List[RuleSignature], signatures: List[RuleSignature]) -> List[RuleSignature]:
+    def __exclude_supersets(
+        self, sub_signatures: List[RuleSignature], signatures: List[RuleSignature]
+    ) -> List[RuleSignature]:
         if len(sub_signatures) == 0:
             for x in signatures:
                 yield x
         for signature in signatures:
             i = 0
-            while i < len(sub_signatures) and not sub_signatures[i].is_subsignature(signature):
+            while i < len(sub_signatures) and not sub_signatures[i].is_subsignature(
+                signature
+            ):
                 i += 1
             if i == len(sub_signatures):
                 yield signature
-    
-    def __exclude_subsets(self, super_signatures: List[RuleSignature], signatures: List[RuleSignature]) -> List[RuleSignature]:
+
+    def __exclude_subsets(
+        self, super_signatures: List[RuleSignature], signatures: List[RuleSignature]
+    ) -> List[RuleSignature]:
         if (len(super_signatures)) == 0:
             for x in signatures:
                 yield x
         for signature in signatures:
             i = 0
-            while i < len(super_signatures) and not signature.is_subsignature(super_signatures[i]):
+            while i < len(super_signatures) and not signature.is_subsignature(
+                super_signatures[i]
+            ):
                 i += 1
             if i == len(super_signatures):
                 yield signature
-    
+
     def add_node(self, common_signature: str, rules: List[str]) -> None:
         signature: RuleSignature = RuleSignature(common_signature)
         signature_size: int = len(signature)
@@ -528,7 +685,7 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
             self.nodes[signature] = rules
         else:
             for rule in rules:
-                self.nodes[signature].append(rule) # TODO Check for actual duplicates?
+                self.nodes[signature].append(rule)  # TODO Check for actual duplicates?
         if signature_size not in self.existing_layers:
             self.layers[signature_size] = [signature]
             self.__add_layer(signature_size)
@@ -551,7 +708,7 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
     def remove_rule(self, rule: Rule) -> None:
         signature: RuleSignature = RuleSignature(rule.signature)
         try:
-            self.nodes[signature].remove(rule.name) # TODO Does this work with objects?
+            self.nodes[signature].remove(rule.name)  # TODO Does this work with objects?
         except ValueError:
             raise RuleNotFoundError
         if len(self.nodes[signature]) == 0:
@@ -599,8 +756,12 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
             self._last_call.index = 0
             # self._last_call.min_layer_index = 0
             # self._last_call.layer_index = 0
-            self.front = [x for x in self.nodes.keys() if x != signature or len(self.nodes[signature]) != 1] # FIXME How to handle rules with same signature?
-            self.front.sort(key = lambda x: len(x))
+            self.front = [
+                x
+                for x in self.nodes.keys()
+                if x != signature or len(self.nodes[signature]) != 1
+            ]  # FIXME How to handle rules with same signature?
+            self.front.sort(key=lambda x: len(x))
             # self.front = list(self.nodes.keys()) # FIXME This is a bit profligate...
             # print("front:", [str(x) for x in self.front])
             # print("self._last_call:", self._last_call.signature)
@@ -609,7 +770,10 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
             # print("Before prunning:", self.front)
             self.__prune_front()
             # print("After prunning:", self.front)
-        if len(self.front) == 0 and self._last_call.index == len(self.nodes[self._last_call.signature]) - 1:
+        if (
+            len(self.front) == 0
+            and self._last_call.index == len(self.nodes[self._last_call.signature]) - 1
+        ):
             # print("empty front")
             # print("self._last_call.index:", self._last_call.index)
             # print("self.nodes[self._last_call.signature]:", self.nodes[self._last_call.signature])
@@ -639,7 +803,9 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
         #     self.layer_index = 0
         # print("min_layer:", self._last_call.min_layer_index)
         # print("existing layers:", self.existing_layers)
-        signature: RuleSignature = self.front.pop(0) # TODO Consider adding a "LastCall.reset()" method to tidy this up!
+        signature: RuleSignature = self.front.pop(
+            0
+        )  # TODO Consider adding a "LastCall.reset()" method to tidy this up!
         self._last_call.signature = signature
         self._last_call.index = 0
         # print("Popping another one:", signature)
@@ -658,14 +824,20 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
             # print("front_signature:", front_signature)
             if last_signature.is_subsignature(front_signature):
                 # print(last_signature, "is subsignature of", front_signature)
-                before, total = self.__prune_branch(self.node_indices[front_signature]) # FIXME Annotation? Tuple[int, int]
+                before, total = self.__prune_branch(
+                    self.node_indices[front_signature]
+                )  # FIXME Annotation? Tuple[int, int]
                 i -= before
                 n -= total
             else:
                 # print("else")
                 i += 1
-                
-    def __prune_branch(self, index: int) -> Tuple[int]: # FIXME You might calculate the branch wrongly, in __get_children_indices()!
+
+    def __prune_branch(
+        self, index: int
+    ) -> Tuple[
+        int
+    ]:  # FIXME You might calculate the branch wrongly, in __get_children_indices()!
         # print("index:", index)
         # print("self.front:", [str(x) for x in self.front])
         branch_front: List[int] = [index]
@@ -702,9 +874,10 @@ class HasseDiagram: # Implemented specifically for use within Prudens, not for w
     def __iter__(self) -> HasseDiagram:
         return self
 
-class RuleSignature: # TODO Consider moving this to rule and fix all instances of rule.signature accordingly.
+
+class RuleSignature:  # TODO Consider moving this to rule and fix all instances of rule.signature accordingly.
     __slots__ = ("signature", "literal_signatures", "length")
-    
+
     def __init__(self, signature: str) -> None:
         self.signature: str = signature
         self.literal_signatures: List[str] = self.signature.split("|")
@@ -728,13 +901,11 @@ class RuleSignature: # TODO Consider moving this to rule and fix all instances o
         return True
 
     @overload
-    def __getitem__(self, key: int) -> str:
-        ...
-    
+    def __getitem__(self, key: int) -> str: ...
+
     @overload
-    def __getitem__(self, key: slice) -> List[str]:
-        ...
-    
+    def __getitem__(self, key: slice) -> List[str]: ...
+
     def __getitem__(self, key: Union[int, slice]) -> Union[str, List[str]]:
         if isinstance(key, slice):
             return self.literal_signatures[key]
@@ -745,7 +916,7 @@ class RuleSignature: # TODO Consider moving this to rule and fix all instances o
 
     def __len__(self) -> int:
         return self.length
-    
+
     def __eq__(self, other: RuleSignature) -> bool:
         # # print("in __eq__")
         # # print(self, other)
@@ -755,10 +926,11 @@ class RuleSignature: # TODO Consider moving this to rule and fix all instances o
 
     def __hash__(self) -> int:
         return hash(self.signature)
-    
+
     def __str__(self) -> str:
         return self.signature
-    
+
+
 class LastCall:
     __slots__ = ("signature", "index", "triggered")
 
@@ -773,4 +945,6 @@ class LastCall:
         # self.layer_index: int = layer_index
 
     def __bool__(self) -> bool:
-        return len(self.signature) != 0 and self.index > -1# and self.min_layer_index > -1 and self.layer_index > -1
+        return (
+            len(self.signature) != 0 and self.index > -1
+        )  # and self.min_layer_index > -1 and self.layer_index > -1

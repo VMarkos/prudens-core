@@ -1,17 +1,28 @@
 import re
 from typing import List, Dict, Set, Tuple
 from prudens_core.entities.Rule import Rule
-from prudens_core.errors.SyntaxErrors import MissingDelimiterError, MalformedPriorityError, ReferenceError
+from prudens_core.errors.SyntaxErrors import (
+    MissingDelimiterError,
+    MalformedPriorityError,
+    ReferenceError,
+)
+
 
 class ParsedPriorityRelation:
     __slots__ = ("rule_indices", "priorities", "default")
 
-    def __init__(self, rule_indices: Dict[str, int], priorities: Set[Tuple[int]], default: bool = False) -> None:
+    def __init__(
+        self,
+        rule_indices: Dict[str, int],
+        priorities: Set[Tuple[int]],
+        default: bool = False,
+    ) -> None:
         self.rule_indices: Dict[str, int] = rule_indices
         self.priorities: Set[Tuple[int]] = priorities
         self.default: bool = default
 
-class PriorityRelationParser: # FIXME Check that all names appearing in priorities are also part of the policy!
+
+class PriorityRelationParser:  # FIXME Check that all names appearing in priorities are also part of the policy!
     __slots__ = ("priority_str", "rules")
 
     def __init__(self, priority_str: str, rules: Dict[str, Rule]) -> None:
@@ -20,12 +31,18 @@ class PriorityRelationParser: # FIXME Check that all names appearing in prioriti
 
     def parse(self) -> ParsedPriorityRelation:
         n: int = len(self.rules)
-        priority_matrix: Set[Tuple[int]] = set() # TODO Reorder these to save up some memory (move them below the default case).
+        priority_matrix: Set[Tuple[int]] = (
+            set()
+        )  # TODO Reorder these to save up some memory (move them below the default case).
         rule_names: List[str] = list(self.rules.keys())
-        rule_indices: Dict[str, int] = { rule_names[i]: i for i in range(n) }
+        rule_indices: Dict[str, int] = {rule_names[i]: i for i in range(n)}
         if self.priority_str == "default":
-            default_priorities: Set[Tuple[int]] = self.__generate_default_priorities(rule_names)
-            return ParsedPriorityRelation(rule_indices, default_priorities, default = True)
+            default_priorities: Set[Tuple[int]] = self.__generate_default_priorities(
+                rule_names
+            )
+            return ParsedPriorityRelation(
+                rule_indices, default_priorities, default=True
+            )
         priorities: List[str] = self.priority_str.split(";")
         if len(priorities) == 1:
             raise MissingDelimiterError(";")
@@ -47,10 +64,12 @@ class PriorityRelationParser: # FIXME Check that all names appearing in prioriti
             # print\("rules:", higher, lower)
             if higher.is_conflicting_with(lower):
                 # print\("conflict")
-                priority_matrix.add((rule_indices[parsed_priority[0]], rule_indices[parsed_priority[1]]))
+                priority_matrix.add(
+                    (rule_indices[parsed_priority[0]], rule_indices[parsed_priority[1]])
+                )
         # print\(priority_matrix)
         return ParsedPriorityRelation(rule_indices, priority_matrix)
-    
+
     # def __generate_conflict_matrix(self, rule_names) -> dok_matrix:
     #     n: int = len(self.rules)
     #     conflict_matrix: ArrayLike = np.zeros((n, n), dtype = int)
@@ -76,6 +95,8 @@ class PriorityRelationParser: # FIXME Check that all names appearing in prioriti
         return priority_matrix
 
     def __parse_priority_str(self, priority_string: str) -> List[str]:
-        if not re.match(r'^[a-zA-Z]\w*\s*\>\s*[a-zA-Z]\w*', priority_string, flags = re.ASCII):
+        if not re.match(
+            r"^[a-zA-Z]\w*\s*\>\s*[a-zA-Z]\w*", priority_string, flags=re.ASCII
+        ):
             raise MalformedPriorityError(priority_string)
         return [x.strip() for x in priority_string.split(">") if x]

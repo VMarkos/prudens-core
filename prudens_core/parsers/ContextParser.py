@@ -2,8 +2,9 @@ from typing import List
 from prudens_core.entities.Literal import Literal
 from prudens_core.errors.SyntaxErrors import PrudensSyntaxError, EmptyContextError
 
+
 class ContextParser:
-    __slots__ = ("context_string")
+    __slots__ = "context_string"
 
     def __init__(self, context_string: str) -> None:
         self.context_string: str = context_string.strip()

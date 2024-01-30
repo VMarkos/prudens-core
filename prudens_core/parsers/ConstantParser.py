@@ -1,13 +1,18 @@
 import re
 from typing import Union, Dict
 from enum import Enum
-from prudens_core.errors.SyntaxErrors import UnmatchedDoubleQuoteError, InvalidArgumentError
+from prudens_core.errors.SyntaxErrors import (
+    UnmatchedDoubleQuoteError,
+    InvalidArgumentError,
+)
+
 
 class ConstantType(Enum):
     INT = 1
     FLOAT = 2
     STRING = 3
-    ENTITY = 4 
+    ENTITY = 4
+
 
 class ParsedConstant:
     __slots__ = ("value", "type")
@@ -16,8 +21,9 @@ class ParsedConstant:
         self.value: Union[int, str, float] = value
         self.type: ConstantType = type
 
+
 class ConstantParser:
-    __slots__ = ("constant_string")
+    __slots__ = "constant_string"
 
     def __init__(self, constant_string: str) -> None:
         self.constant_string: str = constant_string.strip()
@@ -39,18 +45,20 @@ class ConstantParser:
             pass
         if is_float:
             return self.parse_float()
-        if self.constant_string[0] in ['"', '\'']:
+        if self.constant_string[0] in ['"', "'"]:
             return self.parse_string()
         return self.parse_entity()
-    
+
     def parse_string(self) -> ParsedConstant:
-        if self.constant_string[-1] not in ['"', '\'']:
+        if self.constant_string[-1] not in ['"', "'"]:
             raise UnmatchedDoubleQuoteError(self.constant_string)
         return ParsedConstant(self.constant_string[1:-1], ConstantType.STRING)
-    
+
     def parse_entity(self) -> ParsedConstant:
-        if not re.fullmatch(r'[a-z]\w*', self.constant_string, flags = re.ASCII):
-            raise InvalidArgumentError("Syntax error in constant ", self.constant_string)
+        if not re.fullmatch(r"[a-z]\w*", self.constant_string, flags=re.ASCII):
+            raise InvalidArgumentError(
+                "Syntax error in constant ", self.constant_string
+            )
         return ParsedConstant(self.constant_string, ConstantType.ENTITY)
 
     def parse_float(self) -> ParsedConstant:

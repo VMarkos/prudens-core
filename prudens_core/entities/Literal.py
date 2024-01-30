@@ -7,9 +7,18 @@ from prudens_core.parsers.LiteralParser import LiteralParser, ParsedLiteral
 from prudens_core.errors.RuntimeErrors import DuplicateValueError
 import prudens_core.utilities.utils as utils
 
+
 class Literal:
-    __slots__ = ("original_string", "_name", "_sign", "_arity", "arguments", "_is_external", "_is_action",
-                 "signature")
+    __slots__ = (
+        "original_string",
+        "_name",
+        "_sign",
+        "_arity",
+        "arguments",
+        "_is_external",
+        "_is_action",
+        "signature",
+    )
 
     def __init__(self, literal_string: str = None) -> None:
         if literal_string:
@@ -23,14 +32,16 @@ class Literal:
             self._sign: bool = parsed_literal.sign
             self._arity: int = parsed_literal.arity
             self.arguments: List[Union[Variable, Constant]] = parsed_literal.arguments
-            self._is_external: bool = parsed_literal.is_external # TODO Don't you need at this point a field for the code or the code reference?
+            self._is_external: bool = (
+                parsed_literal.is_external
+            )  # TODO Don't you need at this point a field for the code or the code reference?
             self._is_action: bool = parsed_literal.is_action
             self.signature: str = self.__get_signature()
-        
+
     @property
     def name(self) -> str:
         return self._name
-    
+
     @name.setter
     def name(self, new_name: str) -> None:
         if new_name != self._name:
@@ -40,7 +51,7 @@ class Literal:
     @property
     def sign(self) -> bool:
         return self._sign
-    
+
     @sign.setter
     def sign(self, new_sign: bool) -> None:
         if new_sign != self._sign:
@@ -50,7 +61,7 @@ class Literal:
     @property
     def arity(self) -> int:
         return self._arity
-    
+
     @arity.setter
     def arity(self, new_arity: int) -> None:
         if new_arity != self._arity:
@@ -60,7 +71,7 @@ class Literal:
     @property
     def is_external(self) -> bool:
         return self._is_external
-    
+
     @is_external.setter
     def is_external(self, new_is_external: bool) -> None:
         if new_is_external != self._is_external:
@@ -70,7 +81,7 @@ class Literal:
     @property
     def is_action(self) -> bool:
         return self._is_action
-    
+
     @is_action.setter
     def is_action(self, new_is_action: bool) -> None:
         if new_is_action != self._is_external:
@@ -80,17 +91,41 @@ class Literal:
     @classmethod
     def from_dict(cls, init_dict: Dict) -> Literal:
         literal = cls.__new__(cls)
-        literal.original_string = utils.parse_dict_prop(init_dict, "original_string", "Literal", default_value = "", expected_types = [str])
-        literal._name = utils.parse_dict_prop(init_dict, "name", "Literal", expected_types = [str])
-        literal._sign = utils.parse_dict_prop(init_dict, "sign", "Literal", expected_types = [bool])
-        literal._arity = utils.parse_dict_prop(init_dict, "arity", "Literal", expected_types = [int])
-        literal._is_external = utils.parse_dict_prop(init_dict, "is_external", "Literal", expected_types = [bool])
-        literal._is_action = utils.parse_dict_prop(init_dict, "is_action", "Literal", expected_types = [bool])
-        literal.signature = utils.parse_dict_prop(init_dict, "signature", "Literal", default_value = literal.__get_signature(), expected_types = [str])
+        literal.original_string = utils.parse_dict_prop(
+            init_dict,
+            "original_string",
+            "Literal",
+            default_value="",
+            expected_types=[str],
+        )
+        literal._name = utils.parse_dict_prop(
+            init_dict, "name", "Literal", expected_types=[str]
+        )
+        literal._sign = utils.parse_dict_prop(
+            init_dict, "sign", "Literal", expected_types=[bool]
+        )
+        literal._arity = utils.parse_dict_prop(
+            init_dict, "arity", "Literal", expected_types=[int]
+        )
+        literal._is_external = utils.parse_dict_prop(
+            init_dict, "is_external", "Literal", expected_types=[bool]
+        )
+        literal._is_action = utils.parse_dict_prop(
+            init_dict, "is_action", "Literal", expected_types=[bool]
+        )
+        literal.signature = utils.parse_dict_prop(
+            init_dict,
+            "signature",
+            "Literal",
+            default_value=literal.__get_signature(),
+            expected_types=[str],
+        )
         try:
             args_list: List[Union[Variable, Constant]] = init_dict["arguments"]
         except KeyError:
-            raise KeyError(f"Missing key 'arguments' in {Literal} initialization from dict.")
+            raise KeyError(
+                f"Missing key 'arguments' in {Literal} initialization from dict."
+            )
         literal.arguments = []
         for i, argument in enumerate(args_list):
             var_exception = None
@@ -102,7 +137,9 @@ class Literal:
                 try:
                     lit_arg = Constant.from_dict(argument)
                 except Exception as e:
-                    raise ValueError(f"Invalid literal argument in initialization of literal {literal.name} at index {i}: {argument}.")
+                    raise ValueError(
+                        f"Invalid literal argument in initialization of literal {literal.name} at index {i}: {argument}."
+                    )
             literal.arguments.append(lit_arg)
         return literal
 
@@ -112,7 +149,7 @@ class Literal:
             "name": self._name,
             "sign": self._sign,
             "arity": self._arity,
-            "arguments": [ x.to_dict() for x in self.arguments ],
+            "arguments": [x.to_dict() for x in self.arguments],
             "is_external": self._is_external,
             "is_action": self._is_action,
             "signature": self.signature,
@@ -120,20 +157,25 @@ class Literal:
 
     def is_propositional(self) -> bool:
         return self.arity == 0
-    
+
     def is_truism(self) -> bool:
-        return self.signature == "true0" # FIXME What about "not true", i.e. "-true"?
-    
+        return self.signature == "true0"  # FIXME What about "not true", i.e. "-true"?
+
     def unify(self, other: Literal) -> Union[None, Substitution]:
-        if self.name != other.name or self.sign != other.sign or self.arity != other.arity or\
-           self.is_external != other.is_external or self.is_action != other.is_action or\
-            len(self.arguments) != len(other.arguments):
-            return None # Failed to unify
+        if (
+            self.name != other.name
+            or self.sign != other.sign
+            or self.arity != other.arity
+            or self.is_external != other.is_external
+            or self.is_action != other.is_action
+            or len(self.arguments) != len(other.arguments)
+        ):
+            return None  # Failed to unify
         # print("Non-trivial case of literal unification!")
         # print("\tself:", self, "other:", other)
-        sub = Substitution()        
+        sub = Substitution()
         if self.arity == 0:
-            return sub # Propositional literal, i.e. nothing in sub.
+            return sub  # Propositional literal, i.e. nothing in sub.
         for this_arg, other_arg in zip(self.arguments, other.arguments):
             # print("\tthis arg:", this_arg)
             # print("\tother arg:", other_arg)
@@ -153,7 +195,7 @@ class Literal:
                 sub.extend((other_arg, this_arg))
             # print(f"\tsub: {sub}")
         return sub
-    
+
     def is_conflicting_with(self, other: Literal) -> bool:
         if self.sign == other.sign:
             return False
@@ -161,7 +203,7 @@ class Literal:
         are_equal: bool = bool(self.unify(other))
         other.sign = not other.sign
         return are_equal
-    
+
     def __get_signature(self) -> str:
         signature: str = "" if self.sign else "-"
         signature += "?" if self.is_external else ""
@@ -169,7 +211,7 @@ class Literal:
         signature += self.name
         signature += str(self.arity)
         return signature
-    
+
     def __eq__(self, other: Literal) -> bool:
         # # print(self, other)
         # # print("literal equals enter")
@@ -183,7 +225,9 @@ class Literal:
         other_var_indices: Dict[str, int] = dict()
         # # print("arity:", self.arity)
         for i, (self_arg, other_arg) in enumerate(zip(self.arguments, other.arguments)):
-            if (isinstance(self_arg, Constant) and isinstance(other_arg, Variable)) or (isinstance(self_arg, Variable) and isinstance(other_arg, Constant)):
+            if (isinstance(self_arg, Constant) and isinstance(other_arg, Variable)) or (
+                isinstance(self_arg, Variable) and isinstance(other_arg, Constant)
+            ):
                 return False
             if isinstance(self_arg, Constant) and not self_arg == other_arg:
                 return False
@@ -218,7 +262,7 @@ class Literal:
                     variable_indices[var_name] = i
         return hash(hash_str)
 
-    def __deepcopy__(self, memodict = {}) -> Literal:
+    def __deepcopy__(self, memodict={}) -> Literal:
         copycat: Literal = Literal()
         copycat.original_string = self.original_string
         copycat._name = self._name
