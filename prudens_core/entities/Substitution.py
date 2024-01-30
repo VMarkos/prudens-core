@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Union, Dict, Set, Tuple, TYPE_CHECKING
+# import itertools as it
 from copy import deepcopy
 from prudens_core.entities.Constant import Constant
 from prudens_core.entities.Variable import Variable
@@ -25,9 +26,7 @@ class Substitution:
             self.equivalent_variables: Dict[Variable, Set[Variable]] = dict()
         else:
             self.sub: Dict[Variable, Union[Variable, Constant]] = other.sub
-            self.equivalent_variables: Dict[Variable, Set[Variable]] = (
-                other.equivalent_variables
-            )
+            self.equivalent_variables: Dict[Variable, Set[Variable]] = (other.equivalent_variables)
 
     @classmethod
     def from_dict(cls, init_dict) -> Variable:
@@ -118,40 +117,24 @@ class Substitution:
         if self.is_propositional():
             return literal
         instance: Literal = deepcopy(literal)
-        # print("self.sub:", self.sub)
-        # print("self.equivalent_variables:", self.equivalent_variables)
-        # if self.is_propositional():
-        #     # print("self.is_propositional() == True")
-        #     # print("self.sub:", self.sub)
-        #     return instance
         for i, argument in enumerate(instance.arguments):
-            # argument = instance.arguments[i]
             if isinstance(argument, Variable):
-                # print("argument is variable:", argument)
-                # value: Union[Constant, Variable, None] = self.__apply(argument)
-                # if value:
-                #     instance.arguments[i] = value
                 try:
-                    # value: Union[Constant, Variable] = self.__apply(argument)
-                    instance.arguments[i] = self.__apply(argument)
-                except VariableNotFoundInSubstitutionError:
-                    # print("VariableNotFoundInSubstitutionError")
+                    instance.arguments[i] = self.sub[argument]
+                except KeyError:
                     pass
-        # for i, value in sub_indices.items():
-        #     instance.arguments[i] = value
-        # print("instance before return:", [str(x) for x in instance.arguments])
         return instance
 
-    def __apply(self, variable: Variable) -> Union[Constant, Variable]:
-        """
-        There is also an alternative approach. You use indices to map variables to other stuff
-        (i.e., variables or constants) so that the application step is time consuming while the extension step
-        is trivial.
-        """
-        try:
-            return self.sub[variable]
-        except KeyError:
-            raise VariableNotFoundInSubstitutionError(variable)
+    # def __apply(self, variable: Variable) -> Union[Constant, Variable]:
+    #     """
+    #     There is also an alternative approach. You use indices to map variables to other stuff
+    #     (i.e., variables or constants) so that the application step is time consuming while the extension step
+    #     is trivial.
+    #     """
+    #     try:
+    #         return self.sub[variable]
+    #     except KeyError:
+    #         raise VariableNotFoundInSubstitutionError(variable)
 
     def extend(self, other: Union[Substitution, Tuple[Variable, Constant]]) -> None:
         if isinstance(other, tuple):
@@ -233,9 +216,7 @@ class Substitution:
     def __deepcopy__(self, memodict={}) -> Substitution:
         copycat: Substitution = Substitution()
         copycat.sub = {k: v for k, v in self.sub.items()}
-        copycat.equivalent_variables = {
-            k: v for k, v in self.equivalent_variables.items()
-        }
+        copycat.equivalent_variables = {k: v for k, v in self.equivalent_variables.items()}
         return copycat
 
     def __eq__(self, other: Substitution) -> bool:

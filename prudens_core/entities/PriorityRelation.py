@@ -198,9 +198,8 @@ class PriorityRelation:
             actual_conflict = False
             for sub in rules[rule_2]:
                 # print(f"sub: {sub}")
-                # candidate_conflict = sub.apply(self.rule_heads[rule_2])
-                # print(f"candidate_conflict: {candidate_conflict}")
                 if target_head.is_conflicting_with(sub.apply(self.rule_heads[rule_2])):
+                # if target_head.is_conflicting_with(head):
                     actual_conflict = True
                     break
             if not actual_conflict:

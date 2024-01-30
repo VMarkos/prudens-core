@@ -58,6 +58,12 @@ class Constant:
             return self.value == other.value and self.type == other.type
         return True  # FIXME You have to somehow manage cyclic references (Constants <-> Variables).
 
+    def __hash__(self) -> int:
+        h = 2166136261
+        h = (h * 16777619) ^ hash(self.value)
+        h = (h * 16777619) ^ hash(self.type.name)
+        return h
+
     def __eq__(self, other: Constant) -> bool:
         if not isinstance(other, Constant):
             return False

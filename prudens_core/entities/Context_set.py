@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Union, Dict, List
+from typing import Union, Dict, List, Set, Generator
 from copy import deepcopy
 from prudens_core.entities.Literal import Literal
 from prudens_core.entities.Substitution import Substitution
@@ -16,16 +16,19 @@ class Context:
         "original_string",
         "facts",
         "_current_bucket",
-        "_current_bucket_index",
+        # "_current_bucket_index",
+        "_current_bucket_generator",
         "_buckets",
         "_length",
     )
 
     def __init__(self, context_str: str = "") -> None:
         self.original_string: str = context_str
-        self.facts: Dict[int, List[Literal]] = dict()
+        # self.facts: Dict[int, List[Literal]] = dict()
+        self.facts: Dict[int, Set[Literal]] = dict()
         self._current_bucket: int = -1
-        self._current_bucket_index: int = -1
+        # self._current_bucket_index: int = -1
+        self._current_bucket_generator: Generator = iter(())
         self._buckets: List[int] = []
         self._length: int = 0
         if context_str:
@@ -43,6 +46,7 @@ class Context:
     @classmethod
     def from_dict(cls, init_dict: Dict) -> Context:
         context = cls.__new__(cls)
+        context._current_bucket_generator = iter(())
         context.original_string = utils.parse_dict_prop(
             init_dict,
             "original_string",
@@ -57,13 +61,13 @@ class Context:
             default_value=-1,
             expected_types=[int],
         )
-        context._current_bucket_index = utils.parse_dict_prop(
-            init_dict,
-            "current_bucket_index",
-            "Context",
-            default_value=-1,
-            expected_types=[int],
-        )
+        # context._current_bucket_index = utils.parse_dict_prop(
+        #     init_dict,
+        #     "current_bucket_index",
+        #     "Context",
+        #     default_value=-1,
+        #     expected_types=[int],
+        # )
         context._buckets = utils.parse_dict_prop(
             init_dict, "buckets", "Context", default_value=[], expected_types=[list]
         )
@@ -112,7 +116,7 @@ class Context:
             "original_string": self.original_string,
             "facts": {k: [l.to_dict() for l in v] for k, v in self.facts.items()},
             "current_bucket": self._current_bucket,
-            "current_bucket_index": self._current_bucket_index,
+            # "current_bucket_index": self._current_bucket_index, # FIXME To be fixed!
             "buckets": self._buckets,
             "length": self._length,
         }
@@ -122,9 +126,11 @@ class Context:
             raise LiteralAlreadyInContextError(literal)
         literal_hash: int = self.__get_hash(literal)
         if literal_hash in self.facts.keys():
-            self.facts[literal_hash].append(literal)
+            # self.facts[literal_hash].append(literal)
+            self.facts[literal_hash].add(literal)
         else:
-            self.facts[literal_hash] = [literal]
+            # self.facts[literal_hash] = [literal]
+            self.facts[literal_hash] = {literal}
         self._length += 1
 
     def remove_literal(self, literal: Literal) -> None:
@@ -143,7 +149,7 @@ class Context:
         """
         if literal.is_truism():
             return [Substitution()]
-        literal_hash: int = self.__get_hash(literal)
+        literal_hash: str = self.__get_hash(literal)
         # print("literal hash:", literal_hash)
         # print("literal:", literal)
         # print("self.facts:", [[str(y) for y in x] for x in self.facts.values()])
@@ -160,37 +166,31 @@ class Context:
         # print("subs:", [str(x) for x in subs])
         # subs: List[Substitution] = filter(lambda x: x, [literal.unify(fact) for fact in self.facts[literal_hash]])
         return subs
-    
-    def unifies(self, literal: Literal) -> bool:
-        if literal.is_truism():
-            return True
-        if literal.is_truism():
-            return [Substitution()]
-        literal_hash: int = self.__get_hash(literal)
-        if literal_hash not in self.facts.keys():
-            return False
-        for fact in self.facts[literal_hash]:
-            if literal.unifies(fact):
-                return True
-        return False
 
     def remove_conflicts_with(self, ground_facts: Context) -> None:
         for ground_fact in ground_facts:
             negated_hash: int = self.__get_hash(ground_fact, negate=True)
             try:
-                bucket: List[Literal] = self.facts[negated_hash]
+                # bucket: List[Literal] = self.facts[negated_hash]
+                bucket: Set[Literal] = self.facts[negated_hash]
             except KeyError:
                 continue
-            n: int = len(bucket)
-            i: int = 0
-            while i < n:
-                fact: Literal = bucket[i]
-                if fact.is_conflicting_with(ground_fact):
-                    del bucket[i]
-                    n -= 1
-                else:
-                    i += 1
-            if len(bucket) == 0:
+            # bucket = set(filter(lambda x: not x.is_conflicting_with(ground_fact), bucket))
+            # print("Before:", { str(x) for x in self.facts[negated_hash] })
+            self.facts[negated_hash] = { fact for fact in bucket if not fact.is_conflicting_with(ground_fact) }
+            # bucket = { fact for fact in bucket if not fact.is_conflicting_with(ground_fact) }
+            # print("After:", { str(x) for x in self.facts[negated_hash] })
+            # n: int = len(bucket)
+            # i: int = 0
+            # while i < n:
+            #     fact: Literal = bucket[i]
+            #     if fact.is_conflicting_with(ground_fact):
+            #         del bucket[i]
+            #         n -= 1
+            #     else:
+            #         i += 1
+            # print(self.facts)
+            if len(self.facts[negated_hash]) == 0:
                 del self.facts[negated_hash]
 
     def __get_hash(self, literal: Literal, negate: bool = False) -> int:
@@ -200,10 +200,14 @@ class Context:
         return hash(signature)
 
     def __contains(self, literal: Literal) -> bool:
+        hash: int = self.__get_hash(literal)
+        # print("hash:", hash)
         try:
-            return literal in self.facts[self.__get_hash(literal)]
+            # bucket: List[Literal] = self.facts[hash]
+            bucket: Set[Literal] = self.facts[hash]
         except KeyError:
             return False
+        return literal in bucket
 
     def __iter__(self) -> Context:
         self._buckets = list(self.facts.keys())
@@ -212,19 +216,18 @@ class Context:
     def __next__(self) -> Literal:
         if len(self.facts) == 0:
             raise StopIteration
-        if self._current_bucket == -1 or self._current_bucket_index == len(
-            self.facts[self._current_bucket]
-        ):
+        bucket_exhausted = False
+        try:
+            return next(self._current_bucket_generator)
+        except StopIteration:
+            bucket_exhausted = True
+        if self._current_bucket == -1 or bucket_exhausted:
             try:
                 self._current_bucket = self._buckets.pop()
             except IndexError:
                 raise StopIteration
-            self._current_bucket_index = 0
-        next_literal: Literal = self.facts[self._current_bucket][
-            self._current_bucket_index
-        ]
-        self._current_bucket_index += 1
-        return next_literal
+            self._current_bucket_generator = (x for x in self.facts[self._current_bucket])
+        return next(self._current_bucket_generator)
 
     def __len__(self) -> int:
         return self._length
@@ -276,19 +279,13 @@ class Context:
         copycat: Context = Context()
         copycat.original_string = self.original_string
         copycat._current_bucket = self._current_bucket
-        copycat._current_bucket_index = self._current_bucket_index
+        # copycat._current_bucket_index = self._current_bucket_index
+        copycat._current_bucket_generator = self._current_bucket_generator
         copycat._buckets = self._buckets
         copycat._length = self._length
         for bucket, literals in self.facts.items():
-            copycat.facts[bucket] = [x for x in literals]
+            copycat.facts[bucket] = { deepcopy(x) for x in literals }
         return copycat
-
-    def __hash__(self) -> int:
-        h = 2166136261
-        h = (h * 16777619) ^ hash(self._length)
-        for fact in self:
-            h = (h * 16777619) ^ hash(fact)
-        return h
 
     def __eq__(self, __other: object) -> bool:
         if not isinstance(__other, Context):

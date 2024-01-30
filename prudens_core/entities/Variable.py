@@ -78,10 +78,7 @@ class Variable:  # TODO Consider adding fields about the (rule), literal and pos
 
     def unifies(self, other: Union[Variable, Constant]) -> bool:
         if isinstance(other, Variable):
-            return (
-                self.type == VariableType.VARIABLE
-                and other.type == VariableType.VARIABLE
-            )
+            return self.type == VariableType.VARIABLE and other.type == VariableType.VARIABLE
         return True
 
     # def assign(self, value: Union[None, Constant]): # Assigning `None` to a variable de-assigns it.
@@ -106,6 +103,12 @@ class Variable:  # TODO Consider adding fields about the (rule), literal and pos
         if self.type == VariableType.EXPRESSION:
             return str(self.code)
         return self.name
+    
+    def __hash__(self) -> int:
+        h = 2166136261
+        h = (h * 16777619) ^ hash(self.name)
+        h = (h * 16777619) ^ hash(self.type.name)
+        return h # TODO Consider adding code here, if that makes sense
 
     def __eq__(self, other: Variable) -> bool:
         if not isinstance(other, Variable):

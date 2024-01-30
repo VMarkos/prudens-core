@@ -3,6 +3,7 @@ from typing import Dict, Set, List, Tuple, Iterator, overload, Union, FrozenSet
 from copy import deepcopy
 from math import inf
 import re
+# import itertools as it
 from prudens_core.entities.Literal import Literal
 from prudens_core.entities.Rule import Rule
 from prudens_core.entities.Context import Context
@@ -245,16 +246,17 @@ class Policy:
         )
         # print("=" * 25)
         # print("ig complete")
-        marked_literals: Context = (
-            context  # NOTE Policy.infer() consumes the context, polluting it with inferences!
-        )
+        # marked_literals: Context = (
+        #     context  # NOTE Policy.infer() consumes the context, polluting it with inferences!
+        # )
+        marked_literals = context
         dilemmas: Dict[Literal, Dilemma] = dict()
         inferred: bool = True
         depth: int = 0
         while inferred and depth < max_depth:
             inferred = False
             inference_graph.remove_conflicts_with(marked_literals)
-            inferring_rules: Dict[str, Set[Substitution]] = (
+            inferring_rules = (
                 inference_graph.get_consistent_rules()
             )
             # print("inf rules keys:", inferring_rules.keys())
@@ -275,11 +277,13 @@ class Policy:
                     try:
                         is_prior: bool = self.priorities.is_prior(
                             rule_name, inferring_rules, sub
+                            # rule_name, inferring_heads, sub
                         )
                     except UnresolvedConflictsError as e:
                         is_prior: bool = False
                         new_dilemma: Dilemma = Dilemma(
-                            sub.apply(rule.head), set(e.conflicts)
+                            # sub.apply(rule.head), set(e.conflicts)
+                            instance, set(e.conflicts)
                         )
                         positive_head: Literal = new_dilemma.literal
                         # new_dilemmas: List[FrozenSet[str, str]] = e.conflicts
@@ -477,8 +481,8 @@ class InferenceGraph:
         self.rule_hd: HasseDiagram = rule_hd  # FIXME Maybe deepcopy this.
         self.context: Context = context
         self.inferred_by: Dict[Literal, List[Dict[str, Set[Substitution]]]] = dict()
-        self.inferences: Context = Context()
-        self.consistent: Context = Context()
+        # self.inferences: Context = Context()
+        # self.consistent: Context = Context()
         # print("init complete\n" + "=" * 40)
         self.__compute_ig(unittest_params=unittest_params)
         # print(str(self.inferences))
@@ -493,7 +497,7 @@ class InferenceGraph:
         facts: Context = deepcopy(self.context)
         depth: int = 0
         hd_iterations: int = 0
-        inferred_by: Dict[Literal, List[Dict[str, List[Substitution]]]] = dict()
+        inferred_by: Dict[Literal, Set[Dict[str, List[Substitution]]]] = dict() # FIXME Wrong type hint?
         while inferred and depth < max_depth:
             inferred = False
             for rule_name in self.rule_hd:
@@ -638,6 +642,7 @@ class HasseDiagram:  # Implemented specifically for use within Prudens, not for 
                     self.edges.add((sub_index, node_index))
                     sub_added.append(sub_index)
                 sub_excluded.append(sub_signature)
+        # self.edges.difference(it.product(super_added, sub_added))
         for end_node in super_added:  # FIXME Why is this loop needed?
             for start_node in sub_added:
                 try:
@@ -684,8 +689,9 @@ class HasseDiagram:  # Implemented specifically for use within Prudens, not for 
             self.node_indices_rev[n] = signature
             self.nodes[signature] = rules
         else:
-            for rule in rules:
-                self.nodes[signature].append(rule)  # TODO Check for actual duplicates?
+            self.nodes[signature] += rules
+            # for rule in rules:
+            #     self.nodes[signature].append(rule)  # TODO Check for actual duplicates?
         if signature_size not in self.existing_layers:
             self.layers[signature_size] = [signature]
             self.__add_layer(signature_size)
@@ -787,22 +793,6 @@ class HasseDiagram:  # Implemented specifically for use within Prudens, not for 
             # print("self._last_call.signature:", self._last_call.signature)
             self._last_call.index += 1
             return next_rule
-        # # print([str(x) for x in self.front])
-        # # print(str(self._last_call.signature))
-        # FIXME What was the purpose of the following exception handling?
-        # try: # TODO Check this part again? Should there be cases where the signature has already been removed?
-        #     # # print(self.front[0])
-        #     self.front.remove(self._last_call.signature)
-        #     # # print("Signature removed!")
-        # except ValueError:
-        #     pass
-        # print("self._last_call.index:", self._last_call.index)
-        # print("self.nodes[self._last_call.signature]:", self.nodes[self._last_call.signature])
-        # if self._last_call.layer_index == len(self.layers[self.existing_layers[self._last_call.min_layer_index]]):
-        #     self._last_call.min_layer_index += 1
-        #     self.layer_index = 0
-        # print("min_layer:", self._last_call.min_layer_index)
-        # print("existing layers:", self.existing_layers)
         signature: RuleSignature = self.front.pop(
             0
         )  # TODO Consider adding a "LastCall.reset()" method to tidy this up!

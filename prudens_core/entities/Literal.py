@@ -196,11 +196,27 @@ class Literal:
             # print(f"\tsub: {sub}")
         return sub
 
+    def unifies(self, other: Literal) -> bool:
+        """To be used instead of `self.unifies()` in cases where the substitution is not needed."""
+        if (
+            self.name != other.name
+            or self.sign != other.sign
+            or self.arity != other.arity
+            or self.is_external != other.is_external
+            or self.is_action != other.is_action
+            or len(self.arguments) != len(other.arguments)
+        ):
+            return False
+        for this_arg, other_arg in zip(self.arguments, other.arguments):
+            if not this_arg.unifies(other_arg):
+                return False
+        return True
+
     def is_conflicting_with(self, other: Literal) -> bool:
         if self.sign == other.sign:
             return False
         other.sign = not other.sign
-        are_equal: bool = bool(self.unify(other))
+        are_equal: bool = self.unifies(other)
         other.sign = not other.sign
         return are_equal
 
@@ -218,11 +234,12 @@ class Literal:
         if not isinstance(other, Literal):
             return False
         # # print("is instance of literal")
+        # return hash(self) == hash(other)
         if self.signature != other.signature:
             return False
         # # print("same signature")
-        self_var_indices: Dict[str, int] = dict()
-        other_var_indices: Dict[str, int] = dict()
+        self_var_indices: Dict[Variable, int] = dict()
+        other_var_indices: Dict[Variable, int] = dict()
         # # print("arity:", self.arity)
         for i, (self_arg, other_arg) in enumerate(zip(self.arguments, other.arguments)):
             if (isinstance(self_arg, Constant) and isinstance(other_arg, Variable)) or (
@@ -231,36 +248,45 @@ class Literal:
                 return False
             if isinstance(self_arg, Constant) and not self_arg == other_arg:
                 return False
-            self_var: str = str(self_arg)
-            other_var: str = str(other_arg)
             try:
-                self_index: int = self_var_indices[self_var]
+                self_index: int = self_var_indices[self_arg]
             except KeyError:
                 self_index: int = i
-                self_var_indices[self_var] = i
+                self_var_indices[self_arg] = i
             try:
-                other_index: int = other_var_indices[other_var]
+                other_index: int = other_var_indices[other_arg]
             except KeyError:
                 other_index: int = i
-                other_var_indices[other_var] = i
+                other_var_indices[other_arg] = i
             if self_index != other_index:
                 return False
         return True
 
     def __hash__(self) -> int:
-        hash_str: str = self.signature
-        variable_indices: Dict[str, int] = dict()
-        for i, arg in enumerate(self.arguments):
-            if isinstance(arg, Constant):
-                hash_str += "." + str(arg)
-            else:
-                var_name: str = str(arg)
-                try:
-                    hash_str += "." + str(variable_indices[var_name])
-                except KeyError:
-                    hash_str += "." + str(i)
-                    variable_indices[var_name] = i
-        return hash(hash_str)
+        h = 2166136261
+        h = (h * 16777619) ^ hash(self._sign)
+        h = (h * 16777619) ^ hash(self._name)
+        h = (h * 16777619) ^ hash(self._arity)
+        h = (h * 16777619) ^ hash(self._is_action)
+        h = (h * 16777619) ^ hash(self._is_external)
+        for _arg in self.arguments:
+            h = (h * 16777619) ^ hash(_arg)
+        return h
+
+    # def __hash__(self) -> int:
+    #     hash_str: str = self.signature
+    #     variable_indices: Dict[str, int] = dict()
+    #     for i, arg in enumerate(self.arguments):
+    #         if isinstance(arg, Constant):
+    #             hash_str += "." + str(arg)
+    #         else:
+    #             var_name: str = str(arg)
+    #             try:
+    #                 hash_str += "." + str(variable_indices[var_name])
+    #             except KeyError:
+    #                 hash_str += "." + str(i)
+    #                 variable_indices[var_name] = i
+    #     return hash(hash_str)
 
     def __deepcopy__(self, memodict={}) -> Literal:
         copycat: Literal = Literal()

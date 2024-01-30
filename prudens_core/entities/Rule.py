@@ -118,11 +118,7 @@ class Rule:
             # print("subs in rule.trigger():", [str(x) for x in subs])
         except LiteralNotInContextError as e:
             raise e
-        inferences: List[Literal] = []
-        for sub in subs:
-            instance: Literal = sub.apply(self.head)
-            inferences.append((instance, sub))
-        return inferences
+        return ((sub.apply(self.head), sub) for sub in subs)
 
     def is_triggered(self, context: Context, sub: Substitution) -> bool:
         # FIXME This method should behave as in the following docstring:
@@ -136,27 +132,25 @@ class Rule:
         1. Either as self.__unify (i.e., copy-pasting code and making any changes where needed);
         2. or add a parameter to self.__unify to pass the desired version of the body (beware of deepcopies etc).
         """
-        ######################################
-        # FIXME YOU ARE HEREEEEEEEEEEEEEEEEE!#
-        ######################################
-        # FIXME
-        # FIXME
-        # FIXME
         # FIXME You should not return true but the output of self.__unify()!!! (???)
         # print(f"Rule name: {self.name}\n\tContext: {context}")
-        body_instance = (
+        body_instance = ( # NOTE This silently assumes that the entire body is grounded (or noty?)
             sub.apply(literal) for literal in self.body
         )  # sub.apply() deepcopies, so you are fine!
-        try:
-            unifying_subs = self.__unify(
-                context, body_instance
-            )  # FIXME Revisit this. Consider implementing a simple solution?
-            # print("subs in rule.trigger():", [str(x) for x in subs])
-        except LiteralNotInContextError:
-            # print("\t\tFalse")
-            return False
-        # print("\t\tTrue")
-        return bool(unifying_subs)
+        for fact in body_instance:
+            if not context.unifies(fact):
+                return False
+        return True
+        # try:
+        #     unifying_subs = self.__unify(
+        #         context, body_instance
+        #     )  # FIXME Revisit this. Consider implementing a simple solution?
+        #     # print("subs in rule.trigger():", [str(x) for x in subs])
+        # except LiteralNotInContextError:
+        #     # print("\t\tFalse")
+        #     return False
+        # # print("\t\tTrue")
+        # return bool(unifying_subs)
 
     def instantiate(self, sub: Substitution) -> Rule:
         instance: Rule = Rule(self.original_string)
@@ -165,7 +159,7 @@ class Rule:
         instance.head = sub.apply(instance.head)
         return instance
 
-    def is_conflicting_with(self, other: Rule) -> bool:
+    def is_conflicting_with(self, other: Rule) -> bool: # FIXME Is this used somewhere?
         # # print(self.head, other.head)
         if not isinstance(other, Rule):
             return False
@@ -183,14 +177,13 @@ class Rule:
         body_signature: str = "|".join(sorted([x.signature for x in self.body]))
         return body_signature
 
-    def __unify(self, context: Context, body_instance=None) -> List[Substitution]:
-        if body_instance == None:
-            body_instance = self.body
+
+    def __unify(self, context: Context) -> List[Substitution]:
         # initial_sub: Substitution = Substitution()
         current_subs: List[Substitution] = [Substitution()]
         # print("current_subs:", [str(x) for x in current_subs])
         # print("=" * 40)
-        for literal in body_instance:
+        for literal in self.body:
             new_subs: List[Substitution] = []  # FIXME This needs to be a set!
             while current_subs:
                 sub: Substitution = current_subs.pop()
@@ -216,6 +209,7 @@ class Rule:
                 # print("current_subs:", [str(x) for x in current_subs])
             if new_subs:
                 current_subs = new_subs  # [:]
+                # print([str(x) for x in new_instances])
                 # print("EXTENDED current_subs:", [str(x) for x in current_subs])
             else:
                 return []
